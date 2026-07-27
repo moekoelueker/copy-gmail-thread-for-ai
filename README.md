@@ -237,6 +237,14 @@ background.js         shortcuts and downloads
 Everything provider-specific lives in `adapters/`, so supporting another mail
 service is a new file rather than a rewrite.
 
+## Contributing
+
+`docs/OPEN-ITEMS.md` records what is unfinished and what is deliberately
+left alone. `docs/design/v2-design.md` records why each decision was made,
+including the alternatives that were rejected — worth reading before
+proposing changes. `docs/AUDIT-BRIEF.md` is a standing brief for anyone
+who wants to review the project critically.
+
 ## License
 
 MIT — see [LICENSE](LICENSE). Copyright © 2026 Moe Lueker / Zena Labs LLC.
