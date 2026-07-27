@@ -165,6 +165,42 @@
         check("no attachments found in a plain body", CT.adapter.extractAttachments(d).length, 0);
       })();
 
+      (function () {
+        // An icon with no identifiable filename must leave the markup alone.
+        // Deleting it once removed the only evidence three PDFs existed.
+        const d = frag(
+          '<div>Text.<table><tr><td><img src="https://ssl.gstatic.com/ui/v1/icons/mail/images/pdf.gif"></td>' +
+            "<td>mystery</td></tr></table></div>"
+        );
+        const found = CT.adapter.extractAttachments(d);
+        check("unidentifiable attachment is not extracted", found.length, 0);
+        check(
+          "unidentifiable attachment markup is preserved",
+          CT.richtext.toMarkdown(d).includes("mystery"),
+          true
+        );
+      })();
+
+      // ---- header parsing across multiple rows ----
+      // The print view splits sender/date and recipients across separate rows;
+      // reading only the first row found the sender and never any recipient.
+      (function () {
+        const t = frag(
+          "<table><tr><td><b>Jennifer</b> jennifer@globeinflu.com</td>" +
+            "<td>Sun, Jun 14, 2026 at 7:51 AM</td></tr>" +
+            "<tr><td>to: moelueker@gmail.com</td></tr>" +
+            "<tr><td>cc: legal@zenalabs.com</td></tr>" +
+            "<tr><td>Body text here.</td></tr></table>"
+        ).querySelector("table");
+        const rows = t.querySelectorAll(":scope > tbody > tr, :scope > tr");
+        const head = CT.adapter.parseHeader(rows);
+        check("sender name from the first row", head.from.name, "Jennifer");
+        check("sender email from the first row", head.from.email, "jennifer@globeinflu.com");
+        check("date from the first row", head.dateRaw, "Sun, Jun 14, 2026 at 7:51 AM");
+        check("recipient from a later row", head.to.join(","), "moelueker@gmail.com");
+        check("cc from a later row", head.cc.join(","), "legal@zenalabs.com");
+      })();
+
       // ---- end-to-end shape ----
       check(
         "a realistic body survives intact",

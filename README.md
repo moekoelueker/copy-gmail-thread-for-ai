@@ -186,7 +186,7 @@ No dependencies, no build. Requires Node 18+ only to run the tests.
 
 ```bash
 node --test "test/*.test.js"     # 53 tests: parsing, cleaning, formatting, sanitising
-open test/browser/index.html     # 30 DOM tests: the HTML→markdown converter
+open test/browser/index.html     # 37 DOM tests: the HTML→markdown converter
 ```
 
 The browser tests exist separately because Node has no DOM, and adding one

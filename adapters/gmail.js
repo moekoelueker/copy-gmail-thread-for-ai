@@ -112,7 +112,10 @@
         if (child.tagName === "BR") out += "\n";
         else {
           out += headerText(child);
-          if (/^(DIV|P|TR|TABLE|LI)$/.test(child.tagName)) out += "\n";
+          // TD and TH must break too. Without them, adjacent cells run
+          // together and "jennifer@example.com" + "Sun, Jun 14" parses as the
+          // address "jennifer@example.comSun".
+          if (/^(DIV|P|TR|TABLE|LI|TD|TH)$/.test(child.tagName)) out += "\n";
         }
       }
     }
@@ -128,8 +131,15 @@
       .filter(Boolean);
   }
 
-  function parseHeader(row) {
-    const raw = headerText(row);
+  // Takes every row above the body, not just the first. Gmail's print view puts
+  // the sender and date on one row and the recipient list on the next, so
+  // reading only row 0 found the sender correctly and never found a single
+  // recipient.
+  function parseHeader(rows) {
+    const all = Array.from(rows);
+    const headRow = all[0];
+    const headerRows = all.length > 1 ? all.slice(0, all.length - 1) : all;
+    const raw = headerRows.map(headerText).join("\n");
     const lines = raw.split("\n").map((l) => l.trim()).filter(Boolean);
 
     const toLine = lines.find((l) => /^to\b/i.test(l));
@@ -140,10 +150,10 @@
     const beforeTo = toLine ? lines.slice(0, lines.indexOf(toLine)) : lines;
     const senderBlob = beforeTo.join(" ");
 
-    const name = (row.querySelector("b")?.textContent || "").trim();
+    const name = (headRow.querySelector("b")?.textContent || "").trim();
     const email = (senderBlob.match(EMAIL_RE) || [""])[0];
 
-    const cells = row.querySelectorAll(":scope > td");
+    const cells = headRow.querySelectorAll(":scope > td");
     const dateRaw = cells.length > 1 ? headerText(cells[cells.length - 1]).trim() : "";
 
     // The print view does not always start the recipient list on its own line,
@@ -185,13 +195,17 @@
     for (const img of Array.from(scope.querySelectorAll(ATTACH_ICON))) {
       const row = img.closest("tr") || img.closest("table");
       if (!row) continue;
-
-      const name = (row.querySelector("b")?.textContent || "").trim();
       const table = img.closest("table");
-      if (!name) {
-        if (table) table.remove();
-        continue;
-      }
+
+      // Look in the row first, then the whole table: the filename is not always
+      // a sibling of the icon.
+      const nameEl = row.querySelector("b") || (table && table.querySelector("b"));
+      const name = (nameEl && nameEl.textContent ? nameEl.textContent : "").trim();
+
+      // If the filename cannot be identified, leave the markup alone. Removing
+      // it would delete the only trace that a file existed — which is exactly
+      // how three PDFs disappeared from this thread once already.
+      if (!name) continue;
 
       const link = row.querySelector('a[href*="view=att"], a[href*="&disp="]');
       const sizeMatch = (row.textContent || "").match(SIZE_RE);
@@ -234,7 +248,7 @@
       const rows = t.querySelectorAll(":scope > tbody > tr, :scope > tr");
       if (rows.length < 2) continue;
 
-      const head = parseHeader(rows[0]);
+      const head = parseHeader(rows);
       const bodyCell = rows[rows.length - 1];
 
       // Order matters: pull attachments out before rendering, so their markup
@@ -257,7 +271,7 @@
         // dropped those silently, so the message vanished from the thread with
         // no trace. Keep it; format.js supplies a placeholder body.
         body,
-        attachments: [],
+        attachments,
       });
     }
 
@@ -386,5 +400,10 @@
 
   // extractAttachments is exported so the DOM tests can exercise it against
   // Gmail's real attachment markup rather than assuming it matches.
-  CT.adapter = { isThreadOpen, getThread, getAttachments, threadId, extractAttachments, ERR };
+  // extractAttachments and parseHeader are exported so the DOM tests can
+  // exercise them against Gmail's real markup rather than assuming it matches.
+  CT.adapter = {
+    isThreadOpen, getThread, getAttachments, threadId,
+    extractAttachments, parseHeader, ERR,
+  };
 })();
