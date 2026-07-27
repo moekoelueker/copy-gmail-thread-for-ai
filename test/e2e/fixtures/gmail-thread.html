@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en">
-  <head><meta charset="utf-8" /><title>Subject: Paid Collaboration Opportunity with MiniMax - Gmail</title></head>
+  <head><meta charset="utf-8" /><title>Subject: Paid Collaboration Opportunity with Northwind - Gmail</title></head>
   <body>
     <!-- Stand-in for Gmail's shell. Only the parts the adapter actually reads
          are modelled: the ik-bearing link, the inbox list rows, and the open
@@ -19,14 +19,42 @@
 
       <div class="thread">
         <h2 class="hP" data-legacy-thread-id="THREAD_REAL">
-          Subject: Paid Collaboration Opportunity with MiniMax
+          Subject: Paid Collaboration Opportunity with Northwind
         </h2>
 
         <!-- Visible-DOM structure, used only by the fallback path. -->
         <div class="adn">
-          <span class="gD" name="Jennifer" email="jennifer@globeinflu.com">Jennifer</span>
+          <span class="gD" name="Jennifer" email="jennifer@example.com">Jennifer</span>
           <span class="g3" title="Sun, Jun 14, 2026 at 7:51 AM">Jun 14</span>
           <div class="a3s">Visible copy of the first message only.</div>
+        </div>
+
+        <!-- Live attachment chips for the SAME two files the print view lists.
+             Gmail renders these with ui/ik/permmsgid/realattid that the
+             print-view link does not carry, and the filename span, the icon and
+             the download_url carrier are separate nodes. Comparing full hrefs
+             therefore reported one attachment as two or more, flipped
+             attachment completeness to false, and downloaded each file twice in
+             save mode. The pdf here shares realattid with the print view; the
+             csv deliberately does not, so the filename fallback is exercised
+             too. Do not simplify these URLs. -->
+        <div class="aQH">
+          <span class="aZo">
+            <a
+              href="https://mail.google.com/mail/u/0/?ui=2&amp;ik=fixtureik123&amp;attid=0.1&amp;permmsgid=msg-f:2&amp;th=THREAD_REAL&amp;view=att&amp;disp=safe&amp;realattid=f_signed1&amp;zw"
+              download_url="application/pdf:Northwind_Signed.pdf:https://mail.google.com/mail/u/0/?ui=2&amp;ik=fixtureik123&amp;attid=0.1&amp;permmsgid=msg-f:2&amp;th=THREAD_REAL&amp;view=att&amp;disp=safe&amp;realattid=f_signed1&amp;zw">
+              <img class="aQG" alt="" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" />
+              <div class="aYy"><span class="aV3 a6U">Northwind_Signed.pdf</span></div>
+            </a>
+          </span>
+          <span class="aZo">
+            <a
+              href="https://mail.google.com/mail/u/0/?ui=2&amp;ik=fixtureik123&amp;attid=0.2&amp;permmsgid=msg-f:2&amp;th=THREAD_REAL&amp;view=att&amp;disp=safe&amp;kind=csv"
+              download_url="text/csv:figures.csv:https://mail.google.com/mail/u/0/?ui=2&amp;ik=fixtureik123&amp;attid=0.2&amp;permmsgid=msg-f:2&amp;th=THREAD_REAL&amp;view=att&amp;disp=safe&amp;kind=csv">
+              <img class="aQG" alt="" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" />
+              <div class="aYy"><span class="aV3 a6U">figures.csv</span></div>
+            </a>
+          </span>
         </div>
       </div>
     </div>

@@ -8,7 +8,8 @@
     "test:browser": "node tools/run-browser-tests.js",
     "test:e2e": "node --test \"test/e2e/*.test.js\"",
     "test:all": "npm test && npm run test:browser && npm run test:e2e",
-    "redact": "node tools/redact-fixture.js"
+    "redact": "node tools/redact-fixture.js",
+    "package": "node tools/package-extension.js"
   },
   "devDependencies": {
     "playwright": "^1.62.0"

@@ -4,7 +4,10 @@
 > and the defects known at that time. It is retained so the audit remains
 > reproducible; it is not current product documentation. See
 > [`design/v2-design.md`](design/v2-design.md) for the implemented architecture
-> and [`OPEN-ITEMS.md`](OPEN-ITEMS.md) for current limitations.
+> and [`OPEN-ITEMS.md`](OPEN-ITEMS.md) for current limitations. Every file
+> path, line count, test count and output sample below describes that older
+> version and no longer matches the code; run `npm run test:all` for current
+> figures.
 
 A self-contained prompt for an AI agent or human reviewer asked to audit this
 project. Everything needed to start is below; nothing is assumed from prior
@@ -153,7 +156,7 @@ while Gmail's dark theme is a Gmail setting. Button colours derive from
 `currentColor` instead.
 
 **Adapter seam, one implementation.** All Gmail specifics sit behind
-`isThreadOpen` / `getThread` / `getAttachments` so another provider is a new
+`pageState` / `getThread` / `getAttachments` so another provider is a new
 file. Deliberately no second provider was built.
 
 ---

@@ -10,6 +10,8 @@
     FETCH_FAILED: "Gmail couldn't provide this thread, and no visible messages could be read.",
     PARSE_EMPTY: "Gmail returned no messages that the extension could safely parse.",
     WRONG_THREAD: "Gmail returned a different conversation. Nothing was copied.",
+    AMBIGUOUS_PAGE:
+      "Couldn't identify the open conversation on this page. Reload Gmail and try again.",
     THREAD_CHANGED: "The open conversation changed while copying. Nothing was copied.",
     CLIPBOARD_BLOCKED:
       "Chrome blocked the clipboard. Click Gmail and retry; file downloads may already have started.",
@@ -126,8 +128,11 @@
     busy = true;
     setControlsBusy(true);
     try {
-      if (!A.isThreadOpen()) {
-        toast(MESSAGES.NOT_ON_THREAD, { warn: true });
+      const state = A.pageState();
+      if (state !== "thread") {
+        toast(state === "ambiguous" ? MESSAGES.AMBIGUOUS_PAGE : MESSAGES.NOT_ON_THREAD, {
+          warn: true,
+        });
         return;
       }
 
@@ -392,7 +397,8 @@
       run(message.mode === "save" ? "save" : "copy", Boolean(message.viaGesture));
       sendResponse({ ok: true });
     } else if (message?.type === "ping") {
-      sendResponse({ ok: true, onThread: A.isThreadOpen() });
+      const state = A.pageState();
+      sendResponse({ ok: true, onThread: state === "thread", state });
     }
     return false;
   });

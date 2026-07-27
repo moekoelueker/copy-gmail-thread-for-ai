@@ -103,5 +103,36 @@ before a public release.
       telemetry, or third-party request.
 - [ ] `chrome://extensions` shows no unexpected permission after the change.
 
+## Windows-specific pass
+
+Nothing in this project has been executed on Windows. The path, filename and
+shortcut logic is written to be portable and is unit-tested against Windows
+rules, but until this section is completed on a real Windows machine, Windows
+support is **unverified**, not supported.
+
+- [ ] Install from the release archive on Windows 10 and Windows 11, current
+      Chrome, via `chrome://extensions` → Developer mode → **Load unpacked**.
+- [ ] `Alt+C` and `Alt+Shift+C` register and fire. Confirm neither collides with
+      a system or vendor shortcut on the test machine's keyboard layout.
+- [ ] Attachments land under `gmail-threads\<subject>\<file>` inside the
+      configured download folder, with backslash separators shown by Explorer.
+- [ ] Change the download folder to a non-default path, including one on a
+      second drive, and repeat.
+- [ ] Send yourself files named `CON.txt`, `NUL.pdf`, `COM1.csv`, `PRN.docx`,
+      `LPT1.txt`, `report .pdf` (trailing space) and `report..pdf`. Each must
+      download with a safe rewritten name and none may fail silently.
+- [ ] Send two files whose names differ only in case (`Report.pdf`,
+      `report.pdf`). NTFS is case-insensitive: confirm neither overwrites the
+      other and both appear in the output with distinct paths.
+- [ ] Send a file already named `invoice (2).pdf` alongside `invoice.pdf` and
+      confirm the collision suffixes do not collide with each other.
+- [ ] Send a file with a very long Unicode name and confirm the result stays
+      inside the Windows path limit and still opens.
+- [ ] Confirm the copied output contains no drive letter, backslash path, or
+      `~/Downloads`, only the relative `gmail-threads/...` form.
+- [ ] Paste into Notepad and into a browser textarea: line endings must be
+      readable in both, and the XML must still parse.
+- [ ] Repeat the identity, attribution and failure-behavior sections above.
+
 Record Chrome version, operating system, Gmail account type, and any failed case
 with a safely redacted fixture.

@@ -222,3 +222,29 @@ test("invalid XML control characters are replaced", () => {
   assert.ok(out.includes("hello\uFFFDworld"));
   assert.ok(!out.includes("\u0000"));
 });
+
+test("the capture timezone is recorded so a derived date can be audited", () => {
+  const out = F.build({
+    subject: "Q3",
+    source: "print-view",
+    timezone: "Europe/Berlin",
+    completeness: { messages: true, headers: true, attachments: true },
+    messages: [
+      {
+        n: 1,
+        from: { name: "Jane", email: "jane@example.com" },
+        to: [],
+        cc: [],
+        bcc: [],
+        date: "2026-07-07T16:03:00.000Z",
+        dateRaw: "Tue, Jul 7, 2026 at 6:03 PM",
+        body: "hi",
+      },
+    ],
+  });
+  assert.ok(out.includes("<capture_timezone>Europe/Berlin</capture_timezone>"));
+  assert.ok(out.includes('local="Tue, Jul 7, 2026 at 6:03 PM"'));
+
+  // Absent when unknown: never invent one.
+  assert.ok(!F.build({ subject: "x", messages: [] }).includes("<capture_timezone>"));
+});
