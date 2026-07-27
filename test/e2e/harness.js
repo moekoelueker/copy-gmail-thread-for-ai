@@ -76,6 +76,13 @@ async function start() {
       });
     }
     if (url.searchParams.get("view") === "att") {
+      if (url.searchParams.get("kind") === "csv") {
+        return route.fulfill({
+          status: 200,
+          contentType: "text/csv",
+          body: "quarter,revenue\nQ3,1200000\n",
+        });
+      }
       return route.fulfill({ status: 200, contentType: "application/pdf", body: "%PDF-1.4 stub" });
     }
     return route.fulfill({

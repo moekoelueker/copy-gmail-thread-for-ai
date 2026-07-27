@@ -162,8 +162,12 @@ what runs.
 
 Stated plainly, because you should know these before trusting it:
 
-- **Recipients are best-effort.** `To` and `Cc` are parsed from the print
-  view's header text, whose layout Google does not document.
+- **Recipients are parsed from undocumented markup.** `To` and `Cc` come from
+  the print view's header rows, which Google does not document and can change.
+  Verified working on real threads; not guaranteed to survive a Gmail redesign.
+- **Signature images survive as `[image: name]`.** A logo in a sender's
+  signature repeats on every message. Suppressing trailing images would also
+  drop screenshots people meant to send, so the noise is kept deliberately.
 - **Attachment detection relies on Gmail's print-view markup.** Attachments are
   attributed to the message that carried them, read from the print view rather
   than the live page. If Google changes that markup, files will show up as

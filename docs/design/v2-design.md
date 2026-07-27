@@ -450,13 +450,38 @@ chips conversation-wide. Attributing each to a specific message would have meant
 guessing, so `format.js` emits them once for the thread and the README states
 the limitation.
 
-**The headless-Chrome test runner was dropped (§14).** Chrome would not run
-headless reliably in the development environment, and shipping an unverified
-script is worse than shipping none. `test/browser/index.html` is opened directly
-in a browser instead; it prints `PASS n/n` and lists failures. It loads the
-library files with a cache-buster, because a stale cached module reported a
-false pass during development.
+**Testing ended up in three layers, not one (§14).** Node unit tests for pure
+logic; `test/browser/index.html` for DOM code, opened directly in a browser
+because Node has no DOM and adding one means a dependency; and a Playwright
+end-to-end suite that loads the real extension into a real browser against a
+stand-in Gmail served at the real origin. The third layer exists because the
+first two passed while the extension copied the wrong conversation.
 
-**Not yet verified against live Gmail.** §4.4 (the `ik` acquisition ladder),
-print-view recipient parsing, and attachment discovery all depend on Gmail's
-current markup and are unverified. `docs/manual-test.md` covers them.
+Two environment findings shaped it. Chrome 137+ removed `--load-extension`, so
+a stock Chrome silently starts with no extension loaded; the suite uses
+Playwright's pinned Chromium. And Playwright's `headless: true` selects the
+headless shell binary, which cannot run extensions, so it runs the full browser
+under `--headless=new`.
+
+**Verified against live Gmail, and the markup differed from the design in three
+places.** The `ik` ladder (§4.4) worked, so `scripting` is gone as planned.
+Recipients are not on the first header row but a later one. Attachments are not
+in the live DOM at all but in the print view, as a table keyed by a Gmail icon —
+which turned out better than designed, because it makes per-message attribution
+real rather than the thread-level guess §8 settled for. Adjacent header cells
+also concatenate without a separator, which corrupted sender addresses until
+`TD`/`TH` were treated as breaks.
+
+**Attachments are per message, not thread-level.** §8 assumed Gmail only exposed
+them conversation-wide. The print view attributes them, so the output does too.
+
+**Escaping is split by role (§5).** One escaping function could not serve both
+purposes: bodies need light escaping so code and HTML discussion survive, while
+metadata needs full escaping or a recipient rendered `Name <addr>` puts a raw
+opening tag inside the document. Addresses are additionally normalised to
+`Name (addr)`.
+
+**Attachment processing was wired late.** Extraction populated each message, but
+nothing routed those entries through `lib/attachments.js`, so text files were
+never inlined and the save action silently downloaded nothing. Both paths now
+run per message, with the live-DOM scan kept only as a fallback.

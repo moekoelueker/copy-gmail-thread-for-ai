@@ -119,10 +119,25 @@
       }
       const thread = res.thread;
 
+      // Attachments found in the print view are attributed to their own message
+      // and must still be processed — inlined if they are text, downloaded on a
+      // save. Without this they were listed but never fetched, which quietly
+      // made the save action a no-op.
       try {
-        const raw = A.getAttachments();
-        if (raw.length) {
-          thread.attachments = await AT.collect(raw, thread.subject, mode, requestDownload);
+        let found = 0;
+        for (const m of thread.messages) {
+          if (!m.attachments || !m.attachments.length) continue;
+          found += m.attachments.length;
+          m.attachments = await AT.collect(m.attachments, thread.subject, mode, requestDownload);
+        }
+
+        // Only fall back to scanning the live page when the print view gave us
+        // nothing; otherwise the same files would be listed twice.
+        if (!found) {
+          const raw = A.getAttachments();
+          if (raw.length) {
+            thread.attachments = await AT.collect(raw, thread.subject, mode, requestDownload);
+          }
         }
       } catch (e) {
         console.warn("[copy-gmail-thread] attachment collection failed:", e);

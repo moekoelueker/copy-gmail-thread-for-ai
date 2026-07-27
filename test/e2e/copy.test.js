@@ -71,9 +71,12 @@ test("no metadata element leaks a raw angle bracket", async () => {
 test("extracts attachments onto the message that carried them", async () => {
   await H.openThread();
   const out = await H.copyViaButton();
-  assert.ok(out.includes("<attachment_count>1</attachment_count>"), "count missing");
+  assert.ok(out.includes("<attachment_count>2</attachment_count>"), "count wrong or missing");
   assert.ok(out.includes('name="MiniMax_Signed.pdf"'), "attachment missing");
   assert.ok(out.includes('size="153K"'), "attachment size missing");
+  // Both belong to message 2; neither may drift onto another message.
+  const m2 = out.split(/<message /)[2] || "";
+  assert.ok(m2.includes("MiniMax_Signed.pdf"), "attachment attributed to the wrong message");
   // The markup must not also survive as a leftover table in the body.
   assert.ok(!out.includes("pdf.gif"), "Gmail icon leaked into the body");
 });
@@ -119,11 +122,25 @@ test("the service worker command path copies too", async () => {
   assert.ok(out.startsWith("<email_thread>"), out.slice(0, 80));
 });
 
-test("plain copy does not download anything", async () => {
+test("plain copy inlines text attachments but saves nothing", async () => {
   await H.openThread();
-  await H.copyViaButton();
+  const out = await H.copyViaButton();
+  // A .csv is small and readable, so its contents belong in the paste.
+  assert.ok(out.includes("quarter,revenue"), "text attachment was not inlined");
+  // A PDF is not parsed, and a plain copy must never touch the disk.
+  assert.match(out, /name="MiniMax_Signed\.pdf"[^>]*status="not saved/, out.slice(0, 400));
+  assert.ok(out.includes('type="application/pdf"'), "MIME type not inferred from the filename");
+});
+
+test("save mode processes attachments instead of listing them", async () => {
+  await H.openThread();
+  const out = await H.copyViaCommand("save");
+  const pdf = (out.match(/<attachment name="MiniMax_Signed\.pdf"[^>]*>/) || [""])[0];
+  assert.ok(pdf, "attachment missing in save mode");
+  // Whether the download succeeds in a sandboxed browser is beside the point;
+  // what matters is that the save branch ran rather than the copy-only branch.
   assert.ok(
-    !H.state.requests.some((u) => u.includes("view=att")),
-    "a plain copy fetched an attachment"
+    !pdf.includes("not saved"),
+    `save mode still reported the copy-only status: ${pdf}`
   );
 });
