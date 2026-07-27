@@ -84,6 +84,11 @@ body {
   color: var(--muted);
 }
 
+.compact {
+  margin-top: 9px;
+  font-size: 12px;
+}
+
 .hint:empty { display: none; }
 
 .foot {

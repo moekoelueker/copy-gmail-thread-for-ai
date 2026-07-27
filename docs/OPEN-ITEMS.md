@@ -1,75 +1,54 @@
 # Open items
 
-State as of **2026-07-27**, after v2 shipped. Read
-`docs/design/v2-design.md` first — particularly §3 (non-goals) and §18 (where
-implementation diverged from the design) — so decisions already made are not
-re-derived.
+State as of version 2.1.
 
-## Before changing anything
+## Requires a live Gmail session
 
-The extension is loaded **unpacked**. Pushing to GitHub does not change what a
-browser is running: reload the extension at `chrome://extensions`, then reload
-the Gmail tab, or you will be testing the old code.
+The automated browser harness intentionally has no Google credentials. Before a
+release, verify the cases in `manual-test.md`, especially:
 
-```bash
-node --test "test/*.test.js"   # 57 unit tests, no install
-open test/browser/index.html   # 37 DOM tests, no install
-npm install && npm run test:e2e # 14 end-to-end tests in a real browser
-```
+- current Gmail print-view markup on several real accounts;
+- multiple To/Cc/Bcc recipients and localized labels;
+- inline replies created by Gmail, Outlook, and Apple Mail;
+- attachments across multiple messages, including duplicate filenames;
+- Chrome’s real download preferences on macOS and Windows;
+- light, dark, and narrow Gmail layouts;
+- actual shortcut registration.
 
-## 1. Three untested paths — highest value, needs a real mailbox
+Reviewed redacted captures should be added using `fixtures.md`. At present, the
+repository contains synthetic fixtures but does not claim a reviewed live-Gmail
+fixture.
 
-The end-to-end suite runs against a stand-in Gmail built from *our own
-understanding* of the markup, which is exactly what was wrong four separate
-times. These paths have never seen real mail:
+## Distribution
 
-- **Multi-party threads with CC lists.** Everything tested so far is two people
-  with no CC. Recipient parsing is the least proven code in the project.
-- **Forwarded chains.** `lib/clean.js` must keep forwarded content while
-  removing quoted history. That branch has only synthetic coverage.
-- **Non-English threads.** German, French and Chinese quote headers are
-  implemented; none have been verified against real mail.
+There is no signed package, tagged release archive, or Chrome Web Store listing.
+Installation is **Download ZIP → Load unpacked**, and updates are manual.
 
-`docs/fixtures.md` has the capture-and-redact workflow. One capture per case
-becomes a permanent regression test.
+A release archive would improve installation without changing the runtime trust
+model. A Web Store listing would improve updates but would introduce silent
+auto-update and publisher-account considerations; that decision remains
+explicitly deferred.
 
-## 2. `adapters/gmail.js` is doing too much
+## Known product limits
 
-At ~416 lines it handles thread identity, session-key acquisition, fetching,
-header parsing, body extraction and attachment parsing. Several past bugs were
-integration failures inside it. Splitting parsing from fetching is the obvious
-cut. Not urgent, but it is the file most likely to hide the next bug.
+- Gmail internals are undocumented and can break the adapter.
+- Recipient localization is incomplete.
+- The mailbox owner is not identified.
+- Branching reply relationships are flattened into print order.
+- Binary attachments are delivered, not parsed; there is no OCR.
+- Chrome download completion is not known at clipboard-build time, so output
+  truthfully says `download started`.
+- Some signatures or quoted history remain when removal would risk deleting
+  content.
 
-## 3. Distribution
+## Future work worth considering
 
-No tagged release or prebuilt zip yet — install is clone or **Download ZIP**. A
-tagged release with an attached zip would make step 1 a single download.
+- add reviewed live-Gmail fixtures for the cases above;
+- add an optional release-packaging check that verifies the archive contains
+  only runtime files;
+- investigate whether Gmail exposes a stable mailbox-owner signal without
+  adding OAuth or broader permissions;
+- add localized recipient-label fixtures only after observing real markup.
 
-Chrome Web Store submission is **deliberately deferred**: a store extension
-auto-updates silently, and "what you read is what runs" is a large part of why
-this is trustworthy. Revisit only as a conscious tradeoff.
-
-## 4. Deliberate artifacts — do not silently "fix"
-
-- **Signature images survive** as `[image: name]`, repeating on every message
-  from a sender whose signature has a logo. Suppressing trailing images would
-  also drop screenshots people meant to send.
-- **The signature cut is conservative** — it will not cross a postscript, a
-  question mark, or a tail over ~320 characters, so some signatures remain.
-- **Inline replies inside quoted blocks are kept with their quotes.**
-
-Each trades noise for never deleting content. That bias is intentional.
-
-## 5. Not implemented, by design
-
-- **No reply threading.** Output is a flat chronological list; a branching
-  thread would be linearised. The print view likely cannot supply `In-Reply-To`.
-- **No indication of which participant is the mailbox owner**, which an agent
-  drafting a reply would benefit from.
-- **No OCR, no PDF/Office parsing** — see §3 of the design doc.
-
-## 6. Audit
-
-`docs/AUDIT-BRIEF.md` is a self-contained prompt for an independent adversarial
-review. It was written but the review had not been run when v2 shipped. Its
-findings, when they arrive, supersede the priorities above.
+Do not weaken exact thread/subject checks, attachment URL validation, or
+partial-capture signaling in order to make an unusual thread appear successful.

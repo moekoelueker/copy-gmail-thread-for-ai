@@ -1,32 +1,23 @@
-// Service worker.
-//
-// Two jobs: route keyboard commands to the Gmail tab, and perform downloads
-// (content scripts cannot call chrome.downloads).
-//
-// Notably absent: chrome.scripting and any MAIN-world injection. v1 injected
-// into Gmail's own JavaScript context to read a session token; v2 reads the
-// same value from the isolated world, so that capability is gone.
+// Service worker: keyboard command routing and the privileged download boundary.
 
+importScripts("lib/security.js");
+
+const S = globalThis.CT.security;
 const GMAIL = /^https:\/\/mail\.google\.com\//;
 
 async function activeGmailTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab || !tab.id) return null;
-  // tab.url is populated because mail.google.com is in host_permissions.
-  if (tab.url && !GMAIL.test(tab.url)) return null;
+  if (!tab?.id || !tab.url || !GMAIL.test(tab.url)) return null;
   return tab;
 }
 
 async function dispatch(mode) {
   const tab = await activeGmailTab();
-  if (!tab) return; // Not on Gmail. The popup explains what to do.
+  if (!tab) return;
   try {
     await chrome.tabs.sendMessage(tab.id, { type: "run", mode });
   } catch (e) {
-    // Content script not present yet (Gmail still loading, or the tab predates
-    // an extension reload). Nothing useful to do without a notifications
-    // permission, so log it rather than failing silently and invisibly.
-    console.warn("[copy-gmail-thread] could not reach the page:", e?.message || e);
+    console.warn("[copy-gmail-thread] could not reach Gmail:", e?.message || e);
   }
 }
 
@@ -35,34 +26,57 @@ chrome.commands.onCommand.addListener((command) => {
   else if (command === "save-thread") dispatch("save");
 });
 
+function respondWithDownload(id, requestedPath, sendResponse) {
+  chrome.downloads.search({ id }, (items) => {
+    // Issuing a download is not the same as completing it. Report "started"
+    // truthfully and use Chrome's resolved basename when it is already known.
+    const actual = items && items[0] ? items[0].filename : "";
+    sendResponse({
+      ok: true,
+      id,
+      path: S.reportedDownloadPath(actual, requestedPath),
+      status: "download started",
+    });
+  });
+}
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg?.type !== "download") return false;
 
-  // Only ever act on requests originating from a Gmail tab.
-  if (!sender.tab || !GMAIL.test(sender.tab.url || "")) {
-    sendResponse({ ok: false });
+  if (
+    sender.id !== chrome.runtime.id ||
+    sender.frameId !== 0 ||
+    !sender.tab?.url ||
+    !GMAIL.test(sender.tab.url)
+  ) {
+    sendResponse({ ok: false, error: "download request rejected" });
     return false;
   }
-  // Defence in depth: the filename is derived from attacker-controlled input
-  // and is already sanitised in lib/attachments.js. Refuse anything that still
-  // looks like traversal rather than trusting the downloads API to catch it.
+
+  const accountIndex = S.accountIndexFromUrl(sender.tab.url);
+  const context = { accountIndex, threadId: msg.threadId };
+  const url = S.resolveAttachmentUrl(msg.url, context);
   const path = String(msg.path || "");
-  if (!path || path.includes("..") || path.startsWith("/") || /^[A-Za-z]:/.test(path)) {
-    console.warn("[copy-gmail-thread] refused suspicious download path:", path);
-    sendResponse({ ok: false });
+
+  if (!url || !S.safeDownloadPath(path)) {
+    console.warn("[copy-gmail-thread] refused an unsafe download request");
+    sendResponse({ ok: false, error: "unsafe download request rejected" });
     return false;
   }
 
   chrome.downloads.download(
-    { url: msg.url, filename: path, conflictAction: "uniquify", saveAs: false },
+    { url, filename: path, conflictAction: "uniquify", saveAs: false },
     (id) => {
       if (chrome.runtime.lastError || id === undefined) {
-        console.warn("[copy-gmail-thread] download failed:", chrome.runtime.lastError?.message);
-        sendResponse({ ok: false });
-      } else {
-        sendResponse({ ok: true, id });
+        console.warn(
+          "[copy-gmail-thread] download could not start:",
+          chrome.runtime.lastError?.message
+        );
+        sendResponse({ ok: false, error: "download failed to start" });
+        return;
       }
+      respondWithDownload(id, path, sendResponse);
     }
   );
-  return true; // async response
+  return true;
 });

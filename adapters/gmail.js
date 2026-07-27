@@ -1,322 +1,201 @@
-// Gmail adapter.
+// Gmail transport and live-page integration.
 //
-// The only provider implementation. Everything Gmail-specific lives behind
-// three methods (isThreadOpen / getThread / getAttachments) so adding another
-// mail provider later is a new file rather than a refactor. Nothing else in the
-// codebase knows what Gmail is.
+// Detached print-view parsing lives in gmail-parse.js. This file owns only the
+// current page identity, Gmail requests, and the explicitly partial DOM fallback.
 
 (() => {
   const CT = (globalThis.CT = globalThis.CT || {});
-  const { text: T, richtext: RT, clean: CL } = CT;
+  const { text: T, richtext: RT, clean: CL, security: S, attachments: AT } = CT;
+  const P = CT.gmailParse;
 
   const ERR = {
     NOT_ON_THREAD: "NOT_ON_THREAD",
-    NO_IK: "NO_IK",
     NOT_LOGGED_IN: "NOT_LOGGED_IN",
     FETCH_FAILED: "FETCH_FAILED",
     PARSE_EMPTY: "PARSE_EMPTY",
     WRONG_THREAD: "WRONG_THREAD",
   };
-
-  // ---------- thread identity ----------
+  const MAX_PRINT_VIEW_BYTES = 25 * 1024 * 1024;
+  const MAX_LIVE_ATTACHMENTS = 500;
 
   function subjectEl() {
-    return document.querySelector("h2.hP");
+    const candidates = Array.from(document.querySelectorAll("h2.hP")).filter((element) => {
+      if (element.closest('[aria-hidden="true"], [hidden]')) return false;
+      const style = globalThis.getComputedStyle?.(element);
+      return !style || (style.display !== "none" && style.visibility !== "hidden");
+    });
+    if (candidates.length === 1) return candidates[0];
+    const inMain = candidates.filter((element) => element.closest('[role="main"]'));
+    return inMain.length === 1 ? inMain[0] : null;
   }
 
-  // Must be scoped to the OPEN thread's subject heading. Gmail puts
-  // data-legacy-thread-id on inbox list rows as well, so an unscoped
-  // querySelector returns whichever row happens to come first in the DOM — a
-  // different conversation entirely — and the copy silently succeeds with the
-  // wrong email in it. Never widen this selector.
-  function threadId() {
-    const h = subjectEl();
-    if (!h) return null;
+  // Never search the whole Gmail main region. Inbox rows live there too. Walk
+  // only through the subject's ancestors and fail closed at role=main.
+  function threadIdFor(heading) {
+    if (!heading) return null;
+    const direct = heading.getAttribute("data-legacy-thread-id");
+    if (S.validThreadId(direct)) return direct;
 
-    const direct = h.getAttribute("data-legacy-thread-id");
-    if (direct) return direct;
+    let node = heading.parentElement;
+    let depth = 0;
+    while (node && node.getAttribute("role") !== "main" && depth < 8) {
+      const own = node.getAttribute("data-legacy-thread-id");
+      if (S.validThreadId(own)) return own;
 
-    // Fallback stays inside the opened conversation. Searching the document
-    // would reintroduce the list-row bug.
-    const scope = h.closest("[role='main']");
-    const el = scope ? scope.querySelector("[data-legacy-thread-id]") : null;
-    return el ? el.getAttribute("data-legacy-thread-id") : null;
-  }
+      const candidates = Array.from(node.children || [])
+        .filter((child) => child.tagName !== "TR")
+        .map((child) => child.getAttribute?.("data-legacy-thread-id"))
+        .filter((id) => S.validThreadId(id));
+      const unique = Array.from(new Set(candidates));
+      if (unique.length === 1) return unique[0];
+      if (unique.length > 1) return null;
 
-  function accountIndex() {
-    const m = location.pathname.match(/\/mail\/u\/(\d+)/);
-    return m ? m[1] : "0";
-  }
-
-  function isThreadOpen() {
-    return Boolean(threadId() && subjectEl());
-  }
-
-  function threadUrl(id) {
-    return `https://mail.google.com/mail/u/${accountIndex()}/#all/${id}`;
-  }
-
-  // ---------- session key ----------
-  //
-  // The previous version injected into Gmail's MAIN world via chrome.scripting
-  // to read window.GLOBALS[9]. That meant running code inside Gmail's own
-  // JavaScript context — by far the most sensitive thing the extension did, and
-  // all for one string. The same value is reachable from the isolated world with
-  // plain DOM reads, so the scripting permission is gone entirely.
-
-  let cachedIk = null;
-
-  function findIk() {
-    if (cachedIk) return cachedIk;
-
-    // Rung 1: Gmail's own links carry ik= in their query string.
-    for (const a of document.querySelectorAll('a[href*="ik="]')) {
-      const m = (a.getAttribute("href") || "").match(/[?&]ik=([A-Za-z0-9_-]{4,})/);
-      if (m) return (cachedIk = m[1]);
+      node = node.parentElement;
+      depth++;
     }
-
-    // Rung 2: the bootstrap payload in an inline script.
-    for (const s of document.scripts) {
-      if (s.src) continue;
-      const body = s.textContent || "";
-      if (body.length > 2_000_000) continue;
-      const m =
-        body.match(/[?&]ik=([A-Za-z0-9_-]{4,})/) ||
-        body.match(/["']ik["']\s*:\s*["']([A-Za-z0-9_-]{4,})["']/);
-      if (m) return (cachedIk = m[1]);
-    }
-
-    // Rung 3: the caller retries without ik at all.
     return null;
   }
 
-  // ---------- print view ----------
+  function threadId() {
+    return threadIdFor(subjectEl());
+  }
 
-  function printViewUrl(id, ik) {
-    const base = `https://mail.google.com/mail/u/${accountIndex()}/?view=pt&search=all&th=${encodeURIComponent(id)}`;
+  function currentIdentity() {
+    const heading = subjectEl();
+    const id = threadIdFor(heading);
+    const subject = (heading?.innerText || heading?.textContent || "").trim();
+    const accountIndex = S.accountIndexFromUrl(location.href);
+    if (!id || !subject || accountIndex == null) return null;
+    return { id, threadId: id, subject, accountIndex };
+  }
+
+  function identityMatches(thread) {
+    const current = currentIdentity();
+    return Boolean(
+      current &&
+        current.threadId === thread?.threadId &&
+        current.accountIndex === String(thread?.accountIndex) &&
+        T.subjectsMatch(current.subject, thread?.subject)
+    );
+  }
+
+  function isThreadOpen() {
+    return Boolean(currentIdentity());
+  }
+
+  function threadUrl(identity) {
+    return `https://mail.google.com/mail/u/${identity.accountIndex}/#all/${encodeURIComponent(
+      identity.id
+    )}`;
+  }
+
+  const cachedIk = new Map();
+
+  function findIk(accountIndex) {
+    if (cachedIk.has(accountIndex)) return cachedIk.get(accountIndex);
+
+    for (const anchor of document.querySelectorAll('a[href*="ik="]')) {
+      try {
+        const url = new URL(anchor.getAttribute("href") || "", S.GMAIL_ORIGIN);
+        if (
+          url.origin !== S.GMAIL_ORIGIN ||
+          !url.pathname.startsWith(`/mail/u/${accountIndex}/`)
+        ) {
+          continue;
+        }
+        const ik = url.searchParams.get("ik") || "";
+        if (/^[A-Za-z0-9_-]{4,}$/.test(ik)) {
+          cachedIk.set(accountIndex, ik);
+          return ik;
+        }
+      } catch (_) {
+        /* ignore malformed page links */
+      }
+    }
+
+    for (const script of document.scripts) {
+      if (script.src) continue;
+      const body = script.textContent || "";
+      if (body.length > 2_000_000) continue;
+      const match =
+        body.match(/[?&]ik=([A-Za-z0-9_-]{4,})/) ||
+        body.match(/["']ik["']\s*:\s*["']([A-Za-z0-9_-]{4,})["']/);
+      if (match) {
+        cachedIk.set(accountIndex, match[1]);
+        return match[1];
+      }
+    }
+    return null;
+  }
+
+  function printViewUrl(identity, ik) {
+    const base =
+      `https://mail.google.com/mail/u/${identity.accountIndex}/?view=pt&search=all&th=` +
+      encodeURIComponent(identity.id);
     return ik ? `${base}&ik=${encodeURIComponent(ik)}` : base;
   }
 
   function looksLikeLogin(resp, html) {
     if (/accounts\.google\.com|ServiceLogin/i.test(resp.url || "")) return true;
-    return /<title>[^<]*sign in[^<]*<\/title>/i.test(html);
+    return /<title>[^<]*(?:sign in|anmelden|connexion|iniciar sesión)[^<]*<\/title>/i.test(html);
   }
 
-  // Header cells are small and structural; a full markdown render would be
-  // overkill and would mangle the "to ..." line we need to parse.
-  function headerText(node) {
-    let out = "";
-    for (const child of node.childNodes) {
-      if (child.nodeType === 3) out += child.nodeValue;
-      else if (child.nodeType === 1) {
-        if (child.tagName === "BR") out += "\n";
-        else {
-          out += headerText(child);
-          // TD and TH must break too. Without them, adjacent cells run
-          // together and "jennifer@example.com" + "Sun, Jun 14" parses as the
-          // address "jennifer@example.comSun".
-          if (/^(DIV|P|TR|TABLE|LI|TD|TH)$/.test(child.tagName)) out += "\n";
-        }
+  async function responseTextLimited(resp) {
+    const declared = Number(resp.headers.get("content-length"));
+    if (Number.isFinite(declared) && declared > MAX_PRINT_VIEW_BYTES) {
+      const error = new Error("print view exceeds safety limit");
+      error.code = "PRINT_VIEW_TOO_LARGE";
+      throw error;
+    }
+
+    if (!resp.body?.getReader) {
+      const bytes = new Uint8Array(await resp.arrayBuffer());
+      if (bytes.length > MAX_PRINT_VIEW_BYTES) {
+        const error = new Error("print view exceeds safety limit");
+        error.code = "PRINT_VIEW_TOO_LARGE";
+        throw error;
       }
+      return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
     }
-    return out;
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder("utf-8", { fatal: false });
+    let total = 0;
+    let html = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = value || new Uint8Array();
+      total += chunk.byteLength;
+      if (total > MAX_PRINT_VIEW_BYTES) {
+        await reader.cancel().catch(() => {});
+        const error = new Error("print view exceeds safety limit");
+        error.code = "PRINT_VIEW_TOO_LARGE";
+        throw error;
+      }
+      html += decoder.decode(chunk, { stream: true });
+    }
+    return html + decoder.decode();
   }
 
-  const EMAIL_RE = /[\w.+-]+@[\w-]+\.[\w.-]+/;
-
-  function splitAddresses(s) {
-    return String(s || "")
-      .split(/[,;]/)
-      .map((x) => T.normalizeAddress(x.trim()))
-      .filter(Boolean);
-  }
-
-  // Takes every row above the body, not just the first. Gmail's print view puts
-  // the sender and date on one row and the recipient list on the next, so
-  // reading only row 0 found the sender correctly and never found a single
-  // recipient.
-  function parseHeader(rows) {
-    const all = Array.from(rows);
-    const headRow = all[0];
-    const headerRows = all.length > 1 ? all.slice(0, all.length - 1) : all;
-    const raw = headerRows.map(headerText).join("\n");
-    const lines = raw.split("\n").map((l) => l.trim()).filter(Boolean);
-
-    const toLine = lines.find((l) => /^to\b/i.test(l));
-    const ccLine = lines.find((l) => /^cc\b/i.test(l));
-
-    // The sender's address is on the lines before "to ...". Searching the whole
-    // header would happily return a recipient instead.
-    const beforeTo = toLine ? lines.slice(0, lines.indexOf(toLine)) : lines;
-    const senderBlob = beforeTo.join(" ");
-
-    const name = (headRow.querySelector("b")?.textContent || "").trim();
-    const email = (senderBlob.match(EMAIL_RE) || [""])[0];
-
-    const cells = headRow.querySelectorAll(":scope > td");
-    const dateRaw = cells.length > 1 ? headerText(cells[cells.length - 1]).trim() : "";
-
-    // The print view does not always start the recipient list on its own line,
-    // so fall back to an inline match before giving up.
-    let to = toLine ? splitAddresses(toLine.replace(/^to\b:?\s*/i, "")) : [];
-    let cc = ccLine ? splitAddresses(ccLine.replace(/^cc\b:?\s*/i, "")) : [];
-    if (!to.length) {
-      const m = raw.match(/\bto:\s*([^\n]+)/i);
-      if (m) to = splitAddresses(m[1]);
-    }
-    if (!cc.length) {
-      const m = raw.match(/\bcc:\s*([^\n]+)/i);
-      if (m) cc = splitAddresses(m[1]);
-    }
-
-    // Recipients are the one header field whose markup we have not been able to
-    // pin down. Log the raw header when nothing parses, so the gap is
-    // diagnosable from the console instead of silently absent.
-    if (!to.length && !cc.length) {
-      console.debug(
-        "[copy-gmail-thread] no recipients parsed from header:",
-        JSON.stringify(raw.slice(0, 300))
-      );
-    }
-
-    return { from: { name: name || email, email }, to, cc, dateRaw };
-  }
-
-  // Attachments in the print view are rendered as a small table: a filetype
-  // icon from Gmail's own icon set, the filename in <b>, and a size. Parsing
-  // them here rather than from the live DOM means each attachment can be tied
-  // to the message it actually belongs to, instead of being lumped onto the
-  // thread as a guess.
-  const ATTACH_ICON = 'img[src*="/icons/mail/images/"], img[src*="/ui/v1/icons/mail"]';
-  const SIZE_RE = /\b(\d+(?:[.,]\d+)?)\s*([KMG])B?\b/i;
-
-  function extractAttachments(scope) {
-    const found = [];
-    for (const img of Array.from(scope.querySelectorAll(ATTACH_ICON))) {
-      const row = img.closest("tr") || img.closest("table");
-      if (!row) continue;
-      const table = img.closest("table");
-
-      // Look in the row first, then the whole table: the filename is not always
-      // a sibling of the icon.
-      const nameEl = row.querySelector("b") || (table && table.querySelector("b"));
-      const name = (nameEl && nameEl.textContent ? nameEl.textContent : "").trim();
-
-      // If the filename cannot be identified, leave the markup alone. Removing
-      // it would delete the only trace that a file existed — which is exactly
-      // how three PDFs disappeared from this thread once already.
-      if (!name) continue;
-
-      const link =
-        row.querySelector('a[href*="view=att"], a[href*="&disp="]') ||
-        (table && table.querySelector('a[href*="view=att"], a[href*="&disp="]'));
-
-      // Look for the size in the row first, then the whole table. When the
-      // filename lives in a different row than the icon, so does the size.
-      const sizeMatch =
-        (row.textContent || "").match(SIZE_RE) ||
-        ((table && table.textContent) || "").match(SIZE_RE);
-
-      found.push({
-        name,
-        size: sizeMatch ? sizeMatch[0].trim() : undefined,
-        url: link ? link.getAttribute("href") : null,
-      });
-
-      // Drop the table so the same information does not also appear as a
-      // half-empty markdown table inside the message body.
-      if (table) table.remove();
-    }
-    return found;
-  }
-
-  function parsePrintView(html, id) {
-    const doc = new DOMParser().parseFromString(html, "text/html");
-    const tables = doc.querySelectorAll("table.message");
-    if (!tables.length) return null;
-
-    // Verify the fetched conversation is the one on screen. If a thread id is
-    // ever resolved incorrectly, the copy would otherwise succeed silently with
-    // somebody else's email in it — which is far worse than failing.
-    const printSubject = (doc.title || "").replace(/^Gmail\s*-\s*/i, "").trim();
-    const openSubject = (subjectEl()?.innerText || "").trim();
-    if (!T.subjectsMatch(printSubject, openSubject)) {
-      console.warn(
-        "[copy-gmail-thread] thread mismatch — open:", JSON.stringify(openSubject),
-        "fetched:", JSON.stringify(printSubject)
-      );
-      return { mismatch: true };
-    }
-
+  function extractFromDom(identity, reason) {
     const messages = [];
-    let anyTrimmed = false;
-
-    for (const t of tables) {
-      const rows = t.querySelectorAll(":scope > tbody > tr, :scope > tr");
-      if (rows.length < 2) continue;
-
-      const head = parseHeader(rows);
-      const bodyCell = rows[rows.length - 1];
-
-      // Order matters: pull attachments out before rendering, so their markup
-      // is removed from the body rather than rendered as leftover tables.
-      const attachments = extractAttachments(bodyCell);
-
-      CL.stripQuoteNodes(bodyCell);
-      const rendered = RT.toMarkdown(bodyCell);
-      const { text: body, trimmed } = CL.trimQuotedText(rendered);
-      if (trimmed) anyTrimmed = true;
-
-      messages.push({
-        n: messages.length + 1,
-        from: head.from,
-        to: head.to,
-        cc: head.cc,
-        date: T.toIso(head.dateRaw),
-        dateRaw: head.dateRaw,
-        // An attachment-only or image-only message has no text. The old code
-        // dropped those silently, so the message vanished from the thread with
-        // no trace. Keep it; format.js supplies a placeholder body.
-        body,
-        attachments,
-      });
-    }
-
-    if (!messages.length) return null;
-
-    const subject =
-      (subjectEl()?.innerText || "").trim() ||
-      (doc.title || "").replace(/^Gmail\s*-\s*/i, "").trim();
-
-    return {
-      subject,
-      url: threadUrl(id),
-      source: "print-view",
-      complete: true,
-      quotedTrimmed: anyTrimmed,
-      messages,
-    };
-  }
-
-  // ---------- visible-DOM fallback ----------
-
-  function extractFromDom(id) {
-    const messages = [];
-    let anyTrimmed = false;
+    let quotedTrimmed = false;
+    let preservedInline = false;
 
     for (const node of document.querySelectorAll("div.adn")) {
       const bodyEl = node.querySelector("div.a3s");
       if (!bodyEl) continue;
-
       const clone = bodyEl.cloneNode(true);
-      CL.stripQuoteNodes(clone);
-      const { text: body, trimmed } = CL.trimQuotedText(RT.toMarkdown(clone));
-      if (trimmed) anyTrimmed = true;
+      const quoteResult = CL.stripQuoteNodes(clone);
+      if (quoteResult.removed) quotedTrimmed = true;
+      if (quoteResult.preserved) preservedInline = true;
+      const cleaned = CL.trimQuotedText(RT.toMarkdown(clone));
+      if (cleaned.trimmed) quotedTrimmed = true;
 
       const sender = node.querySelector("span.gD");
       const dateEl = node.querySelector("span.g3");
       const dateRaw = (dateEl?.getAttribute("title") || dateEl?.innerText || "").trim();
-
       messages.push({
         n: messages.length + 1,
         from: {
@@ -325,92 +204,169 @@
         },
         to: [],
         cc: [],
+        bcc: [],
         date: T.toIso(dateRaw),
         dateRaw,
-        body,
-        attachments: [],
+        body: cleaned.text,
+      });
+    }
+
+    const warnings = [
+      {
+        code: "VISIBLE_PAGE_FALLBACK",
+        message:
+          reason ||
+          "Gmail's complete print view was unavailable. Collapsed messages and headers may be missing.",
+      },
+    ];
+    if (preservedInline) {
+      warnings.push({
+        code: "INLINE_REPLY_PRESERVED",
+        message: "A quoted block was retained because it may contain an inline reply.",
       });
     }
 
     return {
-      subject: (subjectEl()?.innerText || "").trim(),
-      url: threadUrl(id),
-      source: "dom-fallback",
-      // This path only sees expanded messages. Saying so is the whole point:
-      // silently returning a partial thread that looks complete is the worst
-      // failure this tool can have.
-      complete: false,
-      quotedTrimmed: anyTrimmed,
+      id: identity.id,
+      threadId: identity.id,
+      accountIndex: identity.accountIndex,
+      subject: identity.subject,
+      url: threadUrl(identity),
+      source: "visible-page-partial",
+      quotedTrimmed,
+      completeness: { messages: false, headers: false, attachments: false },
+      warnings,
       messages,
+      attachments: [],
     };
   }
 
-  // ---------- public ----------
-
   async function getThread() {
-    const id = threadId();
-    if (!id) return { ok: false, error: ERR.NOT_ON_THREAD };
+    const identity = currentIdentity();
+    if (!identity) return { ok: false, error: ERR.NOT_ON_THREAD };
 
-    const ik = findIk();
-    let html = null;
+    const ik = findIk(identity.accountIndex);
+    let failure = null;
+    const attempts = ik ? [ik, null] : [null];
+    for (let attempt = 0; attempt < attempts.length; attempt++) {
+      try {
+        const resp = await fetch(printViewUrl(identity, attempts[attempt]), {
+          credentials: "same-origin",
+          cache: "no-store",
+        });
+        const html = await responseTextLimited(resp);
+        if (looksLikeLogin(resp, html)) return { ok: false, error: ERR.NOT_LOGGED_IN };
+        if (!resp.ok) {
+          failure = `Gmail returned HTTP ${resp.status}; the visible-page fallback was used.`;
+          if (attempt + 1 < attempts.length) {
+            cachedIk.set(identity.accountIndex, null);
+            continue;
+          }
+          break;
+        }
 
-    try {
-      const resp = await fetch(printViewUrl(id, ik), { credentials: "include" });
-      const bodyText = await resp.text();
-
-      if (looksLikeLogin(resp, bodyText)) return { ok: false, error: ERR.NOT_LOGGED_IN };
-      if (!resp.ok) {
-        console.warn("[copy-gmail-thread] print view HTTP", resp.status);
-        html = null;
-      } else {
-        html = bodyText;
+        const parsed = P.parsePrintView(html, identity, identity.subject);
+        if (parsed.mismatch) {
+          console.warn("[copy-gmail-thread] refused a print-view subject mismatch");
+          return { ok: false, error: ERR.WRONG_THREAD };
+        }
+        if (parsed.thread) {
+          return {
+            ok: true,
+            thread: {
+              ...parsed.thread,
+              id: identity.id,
+              threadId: identity.id,
+              accountIndex: identity.accountIndex,
+              url: threadUrl(identity),
+            },
+          };
+        }
+        failure = "Gmail's print view contained no parseable messages.";
+        break;
+      } catch (e) {
+        console.warn("[copy-gmail-thread] print-view request failed:", e);
+        failure =
+          e?.code === "PRINT_VIEW_TOO_LARGE"
+            ? "Gmail's print view exceeded the 25 MB safety limit; the visible-page fallback was used."
+            : "Gmail's print view could not be loaded; the visible-page fallback was used.";
+        if (e?.code !== "PRINT_VIEW_TOO_LARGE" && attempt + 1 < attempts.length) {
+          cachedIk.set(identity.accountIndex, null);
+          continue;
+        }
+        break;
       }
-    } catch (e) {
-      console.warn("[copy-gmail-thread] print view fetch failed:", e);
-      html = null;
     }
 
-    if (html) {
-      const thread = parsePrintView(html, id);
-      // A mismatch is never recoverable by falling back — refuse loudly rather
-      // than handing over the wrong conversation.
-      if (thread && thread.mismatch) return { ok: false, error: ERR.WRONG_THREAD };
-      if (thread) return { ok: true, thread };
-      console.warn("[copy-gmail-thread] print view returned no parseable messages");
-    }
-
-    const fallback = extractFromDom(id);
+    const fallback = extractFromDom(identity, failure);
     if (!fallback.messages.length) {
-      return { ok: false, error: ik ? ERR.PARSE_EMPTY : ERR.NO_IK };
+      return { ok: false, error: failure ? ERR.FETCH_FAILED : ERR.PARSE_EMPTY };
     }
     return { ok: true, thread: fallback };
   }
 
-  // Attachment discovery. The print view's markup for attachments is not
-  // documented and varies; this reads the live DOM, which is stable and
-  // observable. Filenames here are attacker-controlled and are sanitised
-  // downstream in lib/attachments.js before ever reaching the downloads API.
-  function getAttachments() {
-    const seen = new Set();
+  // Supplemental attachment discovery from Gmail's own attachment chips. No
+  // document-wide substring selector is used, and URLs are validated downstream
+  // before any request can occur.
+  function getAttachments(thread) {
+    const context = {
+      threadId: thread?.threadId,
+      accountIndex: thread?.accountIndex,
+    };
     const out = [];
-    for (const el of document.querySelectorAll('span.aV3, div.aQA span[title], a[href*="view=att"]')) {
-      const name = (el.getAttribute("title") || el.textContent || "").trim();
-      if (!name || seen.has(name)) continue;
-      const link = el.closest("[download_url]") || el.querySelector?.("[download_url]");
-      const downloadUrl = link?.getAttribute("download_url") || null;
-      const href = el.tagName === "A" ? el.getAttribute("href") : null;
-      seen.add(name);
-      out.push({ name, downloadUrl, href });
+    const seen = new Set();
+    const selector = "span.aV3, div.aQA span[title], [download_url]";
+    let truncated = false;
+
+    for (const element of document.querySelectorAll(selector)) {
+      if (out.length >= MAX_LIVE_ATTACHMENTS) {
+        truncated = true;
+        break;
+      }
+      const carrier =
+        element.closest("[download_url]") ||
+        element.querySelector?.("[download_url]") ||
+        element.closest("a[href]");
+      const downloadUrl = carrier?.getAttribute("download_url") || null;
+      const parsed = downloadUrl ? AT.parseDownloadUrl(downloadUrl) : null;
+      const href = carrier?.getAttribute("href") || parsed?.url || null;
+      const name = (
+        parsed?.name ||
+        element.getAttribute("title") ||
+        element.textContent ||
+        ""
+      ).trim();
+      if (!name) continue;
+
+      const key = href
+        ? S.resolveAttachmentUrl(href, context) || `rejected:${name}:${href}`
+        : `no-link:${name}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({
+        name,
+        downloadUrl,
+        href,
+        messageN: null,
+        source: "live-page",
+      });
     }
-    return out;
+    return { items: out, truncated };
   }
 
-  // extractAttachments is exported so the DOM tests can exercise it against
-  // Gmail's real attachment markup rather than assuming it matches.
-  // extractAttachments and parseHeader are exported so the DOM tests can
-  // exercise them against Gmail's real markup rather than assuming it matches.
   CT.adapter = {
-    isThreadOpen, getThread, getAttachments, threadId,
-    extractAttachments, parseHeader, ERR,
+    isThreadOpen,
+    getThread,
+    getAttachments,
+    subjectElement: subjectEl,
+    identityMatches,
+    threadId,
+    currentIdentity,
+    extractAttachments: P.extractAttachments,
+    parseHeader: P.parseHeader,
+    splitAddressList: P.splitAddressList,
+    MAX_PRINT_VIEW_BYTES,
+    MAX_LIVE_ATTACHMENTS,
+    ERR,
   };
 })();

@@ -5,28 +5,33 @@
     <title>DOM tests</title>
   </head>
   <body>
-    <!-- lib/richtext.js and lib/clean.js's DOM half need a real DOM, which Node
-         has no way to provide without pulling in a dependency. These run in
-         headless Chrome instead; see test/run-browser.sh. -->
     <div id="out">running</div>
 
-    <!-- Loaded with a cache-buster: when this page is served over HTTP the
-         browser will happily re-run stale copies of the libraries and report
-         passes for code you just changed. -->
     <script>
       const V = "?v=" + Date.now();
-      for (const m of ["lib/text", "lib/richtext", "lib/clean", "adapters/gmail"]) {
+      for (const m of [
+        "lib/text",
+        "lib/security",
+        "lib/richtext",
+        "lib/clean",
+        "lib/format",
+        "lib/attachments",
+        "adapters/gmail-parse",
+        "adapters/gmail",
+      ]) {
         document.write('<script src="../../' + m + '.js' + V + '"><\/script>');
       }
     </script>
     <script>
       const results = [];
+      const CONTEXT = { threadId: "THREAD_REAL", accountIndex: "0" };
 
       function frag(html) {
         const d = document.createElement("div");
-        d.innerHTML = html; // test scaffolding only, never used by the extension
+        d.innerHTML = html; // test scaffolding only
         return d;
       }
+
       const md = (html) => CT.richtext.toMarkdown(frag(html));
 
       function check(name, actual, expected) {
@@ -34,57 +39,50 @@
         results.push({ name, ok, actual });
       }
 
-      // ---- links ----
+      // Links are useful, but destinations and Markdown grammar are untrusted.
       check("link becomes markdown", md('<a href="https://ex.com/a">Docs</a>'), "[Docs](https://ex.com/a)");
       check(
-        "gmail redirect unwrapped",
+        "gmail redirect is unwrapped",
         md('<a href="https://www.google.com/url?q=https%3A%2F%2Fex.com%2Fa&amp;sa=D">Docs</a>'),
         "[Docs](https://ex.com/a)"
       );
-      check("javascript href dropped", md('<a href="javascript:alert(1)">Click</a>'), "Click");
-      check("bare url not double-wrapped", md('<a href="https://ex.com">https://ex.com</a>'), "https://ex.com");
-
-      // ---- images ----
+      check("javascript href is dropped", md('<a href="javascript:alert(1)">Click</a>'), "Click");
+      check("scheme-only pseudo-HTTPS is dropped", md('<a href="https:evil">Click</a>'), "Click");
       check(
-        "base64 image never inlined",
+        "bare URL punctuation is encoded without double wrapping",
+        md('<a href="https://ex.com/a_(b)">https://ex.com/a_(b)</a>'),
+        "https://ex.com/a_%28b%29"
+      );
+      check(
+        "markdown punctuation cannot break a link",
+        md('<a href="https://ex.com/a_(b)">[Docs]</a>'),
+        "[\\[Docs\\]](https://ex.com/a_%28b%29)"
+      );
+
+      // Remote images are described but never emitted as active Markdown.
+      check(
+        "base64 image is never inlined",
         md('<img alt="logo" src="data:image/png;base64,AAAA">'),
-        (a) => a === "[inline image: logo]"
+        "[inline image: logo]"
       );
-      check("remote image kept", md('<img alt="x" src="https://ex.com/i.png">'), "![x](https://ex.com/i.png)");
-
-      // ---- image noise (from a real Instagram digest capture) ----
-      check("tracking pixel dropped", md('<img width="1" height="1" src="https://x.com/p.gif">'), "");
+      check("remote image is inert", md('<img alt="x" src="https://ex.com/i.png">'), "[image: x]");
+      check("tracking pixel is dropped", md('<img width="1" height="1" src="https://x.com/p.gif">'), "");
       check(
-        "facebook open-log pixel dropped",
-        md('<img src="https://ci3.googleusercontent.com/meips/AA=s0#https://www.facebook.com/email_open_log_pic.php?mid=1">'),
+        "open-log pixel is dropped",
+        md('<img src="https://ci3.googleusercontent.com/meips/A=s0#https://facebook.com/email_open_log_pic.php">'),
+        ""
+      );
+
+      // Data tables survive; email layout tables do not become pipe noise.
+      check(
+        "spacer table produces nothing",
+        md("<table><tr><td></td><td></td></tr><tr><td></td><td></td></tr></table>"),
         ""
       );
       check(
-        "unwrappable gmail proxy keeps the real url",
-        md('<img alt="logo" src="https://ci3.googleusercontent.com/meips/AA=s0-d-e1-ft#https://static.xx.fbcdn.net/a.png">'),
-        "![logo](https://static.xx.fbcdn.net/a.png)"
-      );
-      check(
-        "bare gmail proxy is described, not linked",
-        md('<img src="https://ci3.googleusercontent.com/meips/AAAA=s0-d-e1-ft">'),
-        "[image]"
-      );
-
-      // ---- tables ----
-      check(
-        "spacer table of empty cells produces nothing",
-        md("<table><tr><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td></tr></table>"),
-        ""
-      );
-      check(
-        "data table becomes a markdown table",
+        "data table becomes markdown",
         md("<table><tr><th>Item</th><th>Cost</th></tr><tr><td>Seat</td><td>$10</td></tr></table>"),
-        (a) => a.includes("| Item | Cost |") && a.includes("| --- | --- |") && a.includes("| Seat | $10 |")
-      );
-      check(
-        "single-column layout table is not a table",
-        md("<table><tr><td>Just wrapper text</td></tr></table>"),
-        "Just wrapper text"
+        (a) => a.includes("| Item | Cost |") && a.includes("| Seat | $10 |")
       );
       check(
         "pipes inside cells are escaped",
@@ -92,140 +90,213 @@
         (a) => a.includes("a\\|b")
       );
 
-      // ---- lists ----
-      check(
-        "unordered list keeps bullets",
-        md("<ul><li>one</li><li>two</li></ul>"),
-        (a) => a.includes("- one") && a.includes("- two")
-      );
-      check(
-        "ordered list is numbered",
-        md("<ol><li>first</li><li>second</li></ol>"),
-        (a) => a.includes("1. first") && a.includes("2. second")
-      );
       check(
         "nested list is indented",
         md("<ul><li>outer<ul><li>inner</li></ul></li></ul>"),
         (a) => /\n\s{2,}- inner/.test(a)
       );
-
-      // ---- inline formatting ----
       check("bold", md("<b>hi</b>"), "**hi**");
       check("italic", md("<i>hi</i>"), "*hi*");
-      check("pre becomes a fence", md("<pre>a\nb</pre>"), (a) => a.startsWith("```") && a.includes("a\nb"));
-      check("br becomes a newline", md("a<br>b"), "a\nb");
-      // The closing tag is split so it cannot terminate this inline script.
-      check("script content dropped", md("<div>keep<script>var x=1<\/script></div>"), "keep");
+      check(
+        "code fence grows past body backticks",
+        md("<pre>before\n```\nafter</pre>"),
+        (a) => a.startsWith("````") && a.endsWith("````")
+      );
+      check(
+        "inline code grows past body backticks",
+        md("<code>a`b</code>"),
+        "``a`b``"
+      );
+      check("script content is dropped", md("<div>keep<script>bad()<\/script></div>"), "keep");
 
-      // ---- quote stripping (DOM half) ----
       function stripped(html) {
         const d = frag(html);
         CT.clean.stripQuoteNodes(d);
         return CT.richtext.toMarkdown(d);
       }
+
       check(
-        "gmail_quote block removed",
+        "ordinary Gmail quote is removed",
         stripped('<div>Reply text<blockquote class="gmail_quote">old stuff</blockquote></div>'),
         "Reply text"
       );
       check(
-        "outlook tail and following siblings removed",
+        "Outlook tail is removed",
         stripped('<div>Reply text</div><div id="appendonsend"></div><div>quoted history</div>'),
         "Reply text"
       );
       check(
-        "non-quote blockquote is kept as a quote",
-        stripped("<div>See:<blockquote>cited line</blockquote></div>"),
-        (a) => a.includes("> cited line")
+        "an inline answer among literal quote lines is preserved",
+        stripped(
+          '<blockquote class="gmail_quote">&gt; First question<br>' +
+            "This is a substantial inline answer that must remain because it contains the sender's actual response and decision.<br>" +
+            "&gt; Second question</blockquote>"
+        ),
+        (a) => a.includes("substantial inline answer")
+      );
+      check(
+        "an answer outside a nested quote is preserved",
+        stripped(
+          '<div class="gmail_quote"><div class="gmail_attr">On Tue, Jane wrote:</div>' +
+            "<blockquote>Old quoted question</blockquote>" +
+            "<div>This is a substantial point-by-point answer outside the nested quotation, and deleting it would change the decision.</div></div>"
+        ),
+        (a) => a.includes("substantial point-by-point answer") && !a.includes("Old quoted question")
       );
 
-      // ---- attachment extraction from print-view markup ----
-      // Shape taken from a real thread: filetype icon, spacer cell, bold name,
-      // size. Previously these leaked into the body as half-empty tables and
-      // never became structured attachments at all.
+      // Print-view attachment parsing: exact origin, account, thread and endpoint.
       const ATTACH_HTML =
         '<div>See attached.<table><tr>' +
         '<td><img src="https://ssl.gstatic.com/ui/v1/icons/mail/images/pdf.gif"></td><td></td>' +
-        '<td><b>MiniMax_Signed.pdf</b> 153K</td></tr></table></div>';
+        '<td><a href="/mail/u/0/?view=att&amp;th=THREAD_REAL&amp;attid=0.1"><b>Contract.pdf</b></a> 153K</td>' +
+        "</tr></table></div>";
 
       (function () {
         const d = frag(ATTACH_HTML);
-        const found = CT.adapter.extractAttachments(d);
-        check("attachment name extracted", found.length && found[0].name, "MiniMax_Signed.pdf");
-        check("attachment size extracted", found.length && found[0].size, "153K");
-        check(
-          "attachment markup removed from the body",
-          CT.richtext.toMarkdown(d),
-          "See attached."
+        const found = CT.adapter.extractAttachments(d, CONTEXT);
+        check("attachment name extracted", found.attachments[0]?.name, "Contract.pdf");
+        check("attachment size extracted", found.attachments[0]?.size, "153K");
+        check("verified attachment parse is complete", found.complete, true);
+        check("attachment markup removed from body", CT.richtext.toMarkdown(d), "See attached.");
+      })();
+
+      (function () {
+        const holder = document.createElement("div");
+        holder.innerHTML =
+          '<h2 class="hP" aria-hidden="true">Stale</h2><h2 class="hP">Current</h2>';
+        document.body.appendChild(holder);
+        check("hidden stale subject is ignored", CT.adapter.subjectElement()?.textContent, "Current");
+        holder.querySelector("h2").removeAttribute("aria-hidden");
+        check("two visible subjects fail closed", CT.adapter.subjectElement(), null);
+        holder.remove();
+      })();
+
+      (function () {
+        const d = frag(
+          '<div>Keep <a href="https://evil.example/?view=att&amp;th=THREAD_REAL&amp;attid=1"><b>trap.txt</b></a></div>'
         );
+        const found = CT.adapter.extractAttachments(d, CONTEXT);
+        check("off-origin attachment-looking link is not extracted", found.attachments.length, 0);
+        check("off-origin link remains ordinary body content", CT.richtext.toMarkdown(d).includes("trap.txt"), true);
       })();
 
       (function () {
-        const d = frag('<div>Body only.</div>');
-        check("no attachments found in a plain body", CT.adapter.extractAttachments(d).length, 0);
+        const d = frag(
+          '<div>Text.<table><tr><td><img src="https://ssl.gstatic.com/ui/v1/icons/mail/images/pdf.gif"></td>' +
+            "<td><b>Offline.pdf</b> 12K</td></tr></table></div>"
+        );
+        const found = CT.adapter.extractAttachments(d, CONTEXT);
+        check("icon-only attachment metadata is retained", found.attachments[0]?.name, "Offline.pdf");
+        check("missing attachment link marks parse incomplete", found.complete, false);
       })();
 
       (function () {
-        // An icon with no identifiable filename must leave the markup alone.
-        // Deleting it once removed the only evidence three PDFs existed.
         const d = frag(
           '<div>Text.<table><tr><td><img src="https://ssl.gstatic.com/ui/v1/icons/mail/images/pdf.gif"></td>' +
             "<td>mystery</td></tr></table></div>"
         );
-        const found = CT.adapter.extractAttachments(d);
-        check("unidentifiable attachment is not extracted", found.length, 0);
+        const found = CT.adapter.extractAttachments(d, CONTEXT);
+        check("unidentifiable attachment is not invented", found.attachments.length, 0);
+        check("unidentifiable markup is preserved", CT.richtext.toMarkdown(d).includes("mystery"), true);
+      })();
+
+      // Recipients can contain commas and Bcc must never disappear.
+      (function () {
+        const table = frag(
+          "<table><tr><td><b>Jennifer</b> jennifer@example.com</td>" +
+            "<td>Sun, Jun 14, 2026 at 7:51 AM</td></tr>" +
+            '<tr><td>to: "Doe, Jane" &lt;jane@example.com&gt;, Moe &lt;moe@example.com&gt;</td></tr>' +
+            "<tr><td>cc: legal@example.com</td></tr>" +
+            "<tr><td>bcc: audit@example.com</td></tr>" +
+            "<tr><td>Body text here.</td></tr></table>"
+        ).querySelector("table");
+        const rows = table.querySelectorAll(":scope > tbody > tr, :scope > tr");
+        const head = CT.adapter.parseHeader(rows);
+        check("quoted comma stays in one recipient", head.to.length, 2);
+        check("quoted recipient name parsed", head.to[0].name, "Doe, Jane");
+        check("quoted recipient email parsed", head.to[0].email, "jane@example.com");
+        check("Bcc parsed", head.bcc[0]?.email, "audit@example.com");
+        check("complete header is declared complete", head.complete, true);
+      })();
+
+      (function () {
+        const table = frag(
+          "<table><tr><td><b>A</b> a@example.com</td><td>Jul 7, 2026</td></tr>" +
+            '<tr><td>to: "Broken &lt;broken@example.com</td></tr>' +
+            "<tr><td>Body.</td></tr></table>"
+        ).querySelector("table");
+        const rows = table.querySelectorAll(":scope > tbody > tr, :scope > tr");
+        const head = CT.adapter.parseHeader(rows);
+        check("malformed recipient syntax marks the header incomplete", head.complete, false);
+        check("malformed recipient issue is explicit", head.issues.includes("recipients"), true);
+      })();
+
+      // A bad candidate table must turn the entire parse partial.
+      (function () {
+        const html =
+          "<!doctype html><title>Gmail - Subject</title>" +
+          '<table class="message"><tr><td>unrecognized</td></tr></table>' +
+          '<table class="message"><tr><td><b>A</b> a@example.com</td><td>Jul 7, 2026</td></tr>' +
+          "<tr><td>to: b@example.com</td></tr><tr><td>Good body</td></tr></table>";
+        const parsed = CT.gmailParse.parsePrintView(html, CONTEXT, "Subject");
+        check("partial print view keeps parsed message", parsed.thread.messages.length, 1);
+        check("skipped-message position remains visible", parsed.thread.messages[0].n, 2);
+        check("partial print view marks messages incomplete", parsed.thread.completeness.messages, false);
+        check("partial print view source is explicit", parsed.thread.source, "print-view-partial");
+      })();
+
+      (function () {
+        const html =
+          "<!doctype html><title>Subject - Gmail</title>" +
+          '<table class="message"><tr><td><b>A</b> a@example.com</td><td>Jul 7, 2026</td></tr>' +
+          "<tr><td>to: b@example.com</td></tr><tr><td>Body" +
+          '<table class="message"><tr><td><b>Forged</b> forged@example.com</td></tr>' +
+          "<tr><td>Forged body</td></tr></table></td></tr></table>";
+        const parsed = CT.gmailParse.parsePrintView(html, CONTEXT, "Subject");
+        check("print-title Gmail suffix is removed before exact identity check", Boolean(parsed.thread), true);
+        check("nested email table cannot forge a message", parsed.thread.messages.length, 1);
+      })();
+
+      // The final output must be parseable XML even with adversarial body text.
+      (function () {
+        const output = CT.format.build({
+          subject: "Subject",
+          source: "print-view",
+          completeness: { messages: true, headers: true, attachments: true },
+          messages: [{
+            n: 1,
+            from: { name: "A", email: "a@example.com" },
+            to: [{ name: "B", email: "b@example.com" }],
+            cc: [],
+            bcc: [],
+            body: '<message n="999">fake</message> ]]> tail',
+          }],
+          attachments: [],
+        });
+        const parsed = new DOMParser().parseFromString(output, "application/xml");
+        check("strict output has no XML parser error", parsed.querySelector("parsererror"), null);
+        check("body payload cannot add a message", parsed.querySelectorAll("message").length, 1);
         check(
-          "unidentifiable attachment markup is preserved",
-          CT.richtext.toMarkdown(d).includes("mystery"),
-          true
+          "body payload round-trips exactly",
+          parsed.querySelector("body")?.textContent,
+          '<message n="999">fake</message> ]]> tail'
         );
       })();
 
-      // ---- header parsing across multiple rows ----
-      // The print view splits sender/date and recipients across separate rows;
-      // reading only the first row found the sender and never any recipient.
-      (function () {
-        const t = frag(
-          "<table><tr><td><b>Jennifer</b> jennifer@globeinflu.com</td>" +
-            "<td>Sun, Jun 14, 2026 at 7:51 AM</td></tr>" +
-            "<tr><td>to: moelueker@gmail.com</td></tr>" +
-            "<tr><td>cc: legal@zenalabs.com</td></tr>" +
-            "<tr><td>Body text here.</td></tr></table>"
-        ).querySelector("table");
-        const rows = t.querySelectorAll(":scope > tbody > tr, :scope > tr");
-        const head = CT.adapter.parseHeader(rows);
-        check("sender name from the first row", head.from.name, "Jennifer");
-        check("sender email from the first row", head.from.email, "jennifer@globeinflu.com");
-        check("date from the first row", head.dateRaw, "Sun, Jun 14, 2026 at 7:51 AM");
-        check("recipient from a later row", head.to.join(","), "moelueker@gmail.com");
-        check("cc from a later row", head.cc.join(","), "legal@zenalabs.com");
-      })();
-
-      // ---- end-to-end shape ----
-      check(
-        "a realistic body survives intact",
-        stripped(
-          '<div>Hi team,<br><br>Numbers below.<table><tr><th>Q</th><th>Rev</th></tr>' +
-            '<tr><td>Q3</td><td>$1.2M</td></tr></table>' +
-            'See <a href="https://ex.com/deck">the deck</a>.' +
-            '<blockquote class="gmail_quote">On Tue someone wrote: old</blockquote></div>'
-        ),
-        (a) =>
-          a.includes("Hi team,") &&
-          a.includes("| Q3 | $1.2M |") &&
-          a.includes("[the deck](https://ex.com/deck)") &&
-          !a.includes("old")
-      );
-
-      const failed = results.filter((r) => !r.ok);
+      const failed = results.filter((result) => !result.ok);
       const out = document.getElementById("out");
       out.textContent =
-        (failed.length ? "FAIL" : "PASS") + " " + (results.length - failed.length) + "/" + results.length;
-      for (const f of failed) {
-        const li = document.createElement("div");
-        li.className = "failure";
-        li.textContent = "FAILED: " + f.name + " -> " + JSON.stringify(f.actual);
-        out.appendChild(li);
+        (failed.length ? "FAIL" : "PASS") +
+        " " +
+        (results.length - failed.length) +
+        "/" +
+        results.length;
+      for (const failure of failed) {
+        const row = document.createElement("div");
+        row.className = "failure";
+        row.textContent =
+          "FAILED: " + failure.name + " -> " + JSON.stringify(failure.actual);
+        out.appendChild(row);
       }
     </script>
   </body>

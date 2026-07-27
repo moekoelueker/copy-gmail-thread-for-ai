@@ -1,80 +1,107 @@
-# Manual test checklist
+# Manual release checklist
 
-The automated suites cover parsing, cleaning, formatting, sanitising and the
-HTML→markdown conversion. What they cannot cover is anything that needs a real
-Gmail session, a real clipboard, or Chrome's own UI. Work through this after
-any change to `content.js`, `background.js`, `adapters/gmail.js`, the manifest,
-or the popup.
+Automated tests have no real Google credential. Run this checklist after changes
+to the manifest, Gmail adapter, content UI, popup, clipboard path, or downloads.
+Use non-sensitive test mail where possible.
 
-## Setup
+## Install and permissions
 
-1. `chrome://extensions` → Developer mode → **Load unpacked**
-2. Confirm the details page lists **exactly** these permissions: read and
-   change your data on `mail.google.com`, manage downloads. Anything more is a
-   regression.
-3. Open a Gmail thread with at least 5 messages, some collapsed.
+- [ ] In Chrome, open `chrome://extensions`, enable Developer mode, and choose
+      **Load unpacked** on the folder containing `manifest.json`.
+- [ ] Confirm access is limited to `mail.google.com`, clipboard writing, and
+      downloads.
+- [ ] Confirm there is no Google OAuth screen, extension login, API key, or
+      consent flow. Normal Gmail sign-in in the tab is the only authentication.
+- [ ] Reload the Gmail tab after loading or reloading the extension.
 
-## Core
+Repeat platform-specific checks on current Chrome for both macOS and Windows
+before a public release.
 
-- [ ] **The pasted `<subject>` matches the thread you actually had open.** Check
-      this first, every time. A wrong-thread bug shipped once already: an
-      unscoped `[data-legacy-thread-id]` lookup matched an inbox list row, so the
-      extension fetched an unrelated conversation and reported success. There is
-      now a subject-match guard, but this is the check that catches its cousins.
-- [ ] Open a thread from the middle of a long inbox, not the top one — that is
-      the case where a list-row mix-up would be visible.
-- [ ] `Alt+C` copies. Toast reads `✓ Copied N messages`, and N matches the real
-      thread length including collapsed messages.
-- [ ] Paste somewhere. Output starts `<email_thread>` and ends
-      `</email_thread>`, and `<complete>` is `true`.
-- [ ] Quoted chains are gone: the oldest message's text appears exactly once in
-      the whole paste, not once per reply.
-- [ ] Hyperlinks survive as `[text](url)`, not bare text.
-- [ ] A thread containing a table produces a markdown table.
-- [ ] The **Copy for LLM** button next to the subject does the same thing.
-- [ ] A single `Cmd+C`/`Ctrl+C` still performs a normal copy — the extension
-      must never shadow it.
+## Identity and completeness
 
-## Shortcuts
+- [ ] Open a conversation from the middle of an inbox containing other rows.
+- [ ] Use **Copy thread**. The pasted `<subject>` exactly matches the open
+      conversation.
+- [ ] `<messages>` equals Gmail’s full count, including messages collapsed on
+      screen.
+- [ ] Output begins `<email_thread format_version="3">` and ends
+      `</email_thread>`.
+- [ ] For a normal print-view capture, all three `<completeness>` attributes and
+      `<complete>` are `true`.
+- [ ] Open a second signed-in Gmail account (`/mail/u/1/` or later) and repeat.
+      No data or attachment may cross account indexes.
+- [ ] Test a non-Latin subject. It must copy the same subject or refuse; a
+      merely similar subject must not pass.
 
-- [ ] `chrome://extensions/shortcuts` lists both commands.
-- [ ] Remap copy to something else; the new binding works and the old one stops.
-- [ ] On macOS, `Option+C` does not type `ç` into the page.
-- [ ] No clipboard permission prompt appears when using the keyboard shortcut.
+## Attribution and content
 
-## Attachments
+- [ ] Every message has the correct `n`, `from`, `email`, `date`, and `local`.
+- [ ] To, Cc, and Bcc recipients are under the correct message. Include a
+      display name containing a comma.
+- [ ] Each attachment appears exactly once under its message, or under
+      `attribution="unknown"` with a warning.
+- [ ] Links and data tables remain useful.
+- [ ] Remote images appear only as inert `[image: …]` descriptions; no
+      `![…](https://…)` tracker remains.
+- [ ] Recognized history is removed without deleting a point-by-point answer.
+- [ ] Forwarded content is retained.
+- [ ] A body containing `<message>`, `</message>`, and `]]>` produces parseable
+      XML with the original text inside `<body>`.
 
-- [ ] Thread with a PDF: `Alt+C` lists it under `<attachments>` with
-      `status="not saved…"` and does **not** download anything.
-- [ ] `Alt+Shift+C`: the file lands in `~/Downloads/gmail-threads/<subject>/`
-      and the output carries the path.
-- [ ] Thread with a `.csv` or `.txt`: content is inlined into the paste.
-- [ ] A file with an awkward name (spaces, umlauts, emoji) saves with a sane
-      filename.
+## Clipboard and controls
 
-## Failure modes — each must be visibly distinct
+- [ ] **Copy thread** beside the subject works.
+- [ ] The popup’s **Copy thread** action produces the same output.
+- [ ] Both actions disable together while work is running; repeated clicks do
+      not overlap.
+- [ ] `Option+C` works on macOS and `Alt+C` works on Windows.
+- [ ] Remapping at `chrome://extensions/shortcuts` works.
+- [ ] Normal `Command+C`/`Ctrl+C` remains unchanged.
+- [ ] Keyboard and popup paths do not show a clipboard permission prompt.
+- [ ] Light theme, dark theme, keyboard focus, and a narrow window remain
+      legible and usable.
 
-- [ ] Inbox list, no thread open → "Open an email thread first."
-- [ ] Signed out in another tab, then copy → "Gmail session expired."
-- [ ] Offline → a fetch error, not a silent failure or an empty clipboard.
-- [ ] Reload the extension with Gmail still open → the button disappears rather
-      than throwing.
-- [ ] Very long thread (100+) → still copies, toast reports the size.
+## Attachments and paths
 
-## Partial capture
+- [ ] **Copy thread** inlines a small text file, lists a PDF, and starts no
+      download.
+- [ ] **Copy + save files** downloads both the text file and PDF.
+- [ ] Output says `download started`, never `saved`.
+- [ ] Files land under `gmail-threads/<sanitized-subject>/` inside Chrome’s
+      configured download directory.
+- [ ] Test duplicate filenames, including an existing `file (2).pdf`; no file
+      is overwritten or ambiguously referenced.
+- [ ] Test spaces, Unicode, emoji, and a very long filename.
+- [ ] Change Chrome’s download directory and repeat. No hard-coded
+      `~/Downloads` or Windows path should appear.
+- [ ] With “Ask where to save each file” enabled, verify Chrome’s normal prompt
+      and that the extension remains responsive.
 
-This is the most important case, because the failure looks like success.
+## Failure behavior
 
-- [ ] Force the fallback (block `view=pt` in DevTools' network conditions, or
-      temporarily break `printViewUrl`).
-- [ ] Toast is **orange** and reads `⚠ … collapsed messages may be missing`.
-- [ ] Output contains `<complete>false</complete>` and a `<note>` explaining it.
+- [ ] Inbox with no conversation open → “Open an email thread first.”
+- [ ] Signed-out/expired session → explicit error and no clipboard replacement.
+- [ ] Offline or blocked print-view request → visible-page fallback only when
+      visible messages exist.
+- [ ] Fallback output has all completeness fields `false`, a
+      `VISIBLE_PAGE_FALLBACK` warning, and a warning-colored toast.
+- [ ] Alter a saved print-view title to another subject → copy is refused and
+      the clipboard remains unchanged.
+- [ ] Add an unrecognized `table.message` to a fixture → parsed messages remain,
+      but `messages=false` and `MESSAGE_SKIPPED` are present.
+- [ ] Reload the extension while Gmail remains open. Stale controls disappear;
+      reloading Gmail restores them without console errors.
+- [ ] A very long thread (100+ messages) completes and leaves Chrome responsive.
 
-## Appearance
+## Security spot checks
 
-- [ ] Gmail light theme: button looks native next to the subject.
-- [ ] Gmail dark theme: button and toast are both legible.
-- [ ] Tab to the button: a visible focus ring appears.
-- [ ] Popup on Gmail: both actions work.
-- [ ] Popup on a non-Gmail page: explains itself, offers "Open Gmail".
-- [ ] Popup shows current shortcuts; "Change shortcuts" opens Chrome's page.
+- [ ] An ordinary email link containing `view=att` on another origin is neither
+      fetched nor downloaded.
+- [ ] An attachment link for another thread or account is rejected.
+- [ ] No raw attachment capability URL appears in the clipboard.
+- [ ] DevTools shows only Gmail requests initiated by a copy—no analytics,
+      telemetry, or third-party request.
+- [ ] `chrome://extensions` shows no unexpected permission after the change.
+
+Record Chrome version, operating system, Gmail account type, and any failed case
+with a safely redacted fixture.

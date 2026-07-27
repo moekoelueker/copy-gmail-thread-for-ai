@@ -7,6 +7,14 @@
    everything from currentColor, which inherits Gmail's actual foreground colour,
    so it adapts to any theme — including custom ones — with no detection. */
 
+.ctl-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 12px;
+  vertical-align: middle;
+}
+
 .ctl-btn {
   /* Same copy glyph as the extension icon, inlined so it needs no
      web_accessible_resources entry. Painted with a mask rather than as an
@@ -24,11 +32,17 @@
   border-color: color-mix(in srgb, currentColor 30%, transparent);
   border-radius: 14px;
   padding: 4px 12px 4px 10px;
-  margin-left: 12px;
+  margin: 0;
   cursor: pointer;
   vertical-align: middle;
   white-space: nowrap;
   transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.ctl-btn-save {
+  --ctl-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3v12m0 0 4-4m-4 4-4-4'/%3E%3Cpath d='M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2'/%3E%3C/svg%3E");
+  background: rgba(128, 128, 128, 0.08);
+  background: color-mix(in srgb, currentColor 7%, transparent);
 }
 
 .ctl-btn::before {
@@ -104,4 +118,12 @@
   .ctl-btn,
   .ctl-toast { transition: none; }
   .ctl-loading { animation: none; }
+}
+
+@media (max-width: 720px) {
+  .ctl-actions {
+    display: flex;
+    width: fit-content;
+    margin: 8px 0 0;
+  }
 }

@@ -6,4 +6,6 @@ node_modules/
 # Anchored to the repo root so it cannot swallow the synthetic fixtures in
 # test/e2e/fixtures/, which the suite needs on a fresh clone.
 /printview-*.html
+/gmail-printview-raw*.html
 /test/e2e/fixtures/raw-*.html
+/test/e2e/fixtures/*-raw*.html
