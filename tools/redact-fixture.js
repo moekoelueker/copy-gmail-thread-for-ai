@@ -98,11 +98,34 @@ async function main() {
         "i"
       );
       const EMAIL = /[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9-]+(?:\.[A-Z0-9-]+)+/gi;
-      const LETTERS = /[A-Za-zÀ-ɏ]{2,}/g;
-      const SENTINEL = /\uE000(\d+)\uE001/g;
+      // Every script, not just Latin-1. A Latin-only class left whole Chinese,
+      // Cyrillic, Arabic and Greek sentences in the committed fixture verbatim.
+      const LETTERS = /\p{L}{2,}/gu;
+      const LATIN = /[A-Za-z]/;
+
+      // Digits carried the most sensitive content of all and were untouched:
+      // government identifiers, bank and account numbers, telephone numbers,
+      // dates of birth and medical record numbers all survived intact. Runs of
+      // four or fewer digits are left alone so times, years and small
+      // quantities keep the capture parseable.
+      const NUMBERS = [
+        /\b\d{3}-\d{2}-\d{4}\b/g,
+        /\+?\d[\d\u00a0 ().-]{6,}\d/g,
+        /\d{5,}/g,
+      ];
+
+      // The sentinel must survive digit scrubbing, so its index is encoded in
+      // private-use code points rather than ASCII digits.
+      const park = (n) =>
+        String(n).replace(/\d/g, (d) => String.fromCharCode(0xe010 + Number(d)));
+      const unpark = (v) =>
+        v.replace(/[\uE010-\uE019]/g, (c) => String(c.charCodeAt(0) - 0xe010));
+      const SENTINEL = /\uE000([\uE010-\uE019]+)\uE001/g;
 
       const pseudoWord = (word, offset) => {
         const replacement = words[(word.length * 7 + offset) % words.length];
+        // Case mapping is meaningless outside bicameral scripts.
+        if (!LATIN.test(word)) return replacement;
         if (word === word.toUpperCase() && word.length > 1) return replacement.toUpperCase();
         if (word[0] === word[0].toUpperCase()) {
           return replacement[0].toUpperCase() + replacement.slice(1);
@@ -110,16 +133,32 @@ async function main() {
         return replacement;
       };
 
+      const scrubNumbers = (input) => {
+        let value = input;
+        for (const pattern of NUMBERS) {
+          value = value.replace(pattern, (match, offset) => {
+            if ((match.match(/\d/g) || []).length < 5) return match;
+            let index = -1;
+            return match.replace(/\d/g, () => {
+              index++;
+              return String((match.length * 7 + offset + index * 3) % 10);
+            });
+          });
+        }
+        return value;
+      };
+
       const scrubText = (input) => {
         const parked = [];
         let value = String(input || "").replace(EMAIL, (match) => {
           parked.push(pseudoPerson(match).email);
-          return `\uE000${parked.length - 1}\uE001`;
+          return `\uE000${park(parked.length - 1)}\uE001`;
         });
         value = value.replace(LETTERS, (word, offset) =>
           KEEP.test(word) ? word : pseudoWord(word, offset)
         );
-        return value.replace(SENTINEL, (_, index) => parked[Number(index)]);
+        value = scrubNumbers(value);
+        return value.replace(SENTINEL, (_, index) => parked[Number(unpark(index))] ?? "");
       };
 
       const isGmailAttachment = (raw) => {

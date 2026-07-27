@@ -67,7 +67,12 @@ The tool:
 - blocks every network request before loading the HTML;
 - removes scripts, executable attributes, comments, embeds, styles, forms, and
   request-capable attributes;
-- pseudonymizes addresses, names, prose, and filenames;
+- pseudonymizes addresses, names, filenames, and prose in any script;
+- replaces digit runs of five or more, plus telephone and government-identifier
+  shapes, so account numbers, record numbers and dates of birth do not survive.
+  Runs of four or fewer digits are deliberately kept so times, years and small
+  quantities leave the capture parseable — which means a short identifier can
+  still get through;
 - replaces absolute and relative links, attachment capabilities, and
   `download_url` values;
 - writes a non-identifying `real-capture-N.html` name without overwriting;

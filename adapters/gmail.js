@@ -14,19 +14,44 @@
     FETCH_FAILED: "FETCH_FAILED",
     PARSE_EMPTY: "PARSE_EMPTY",
     WRONG_THREAD: "WRONG_THREAD",
+    AMBIGUOUS_PAGE: "AMBIGUOUS_PAGE",
   };
   const MAX_PRINT_VIEW_BYTES = 25 * 1024 * 1024;
   const MAX_LIVE_ATTACHMENTS = 500;
 
-  function subjectEl() {
+  // Gmail renders message bodies inside these containers. Email HTML is
+  // attacker-controlled: a body carrying its own <h2 class="hP"> made the real
+  // subject ambiguous, which removed the in-page controls entirely and left the
+  // popup insisting no thread was open. Anyone who can send mail could do it.
+  // Kept deliberately narrow. div.a3s and div.ii are the rendered body, which
+  // is where injected markup lands; div.adn and div.gs are Gmail's own message
+  // containers and excluding those risks discarding the real heading and
+  // breaking the extension outright, which is worse than the attack.
+  const MESSAGE_BODY = "div.a3s, div.ii, blockquote, table.message";
+
+  function subjectState() {
     const candidates = Array.from(document.querySelectorAll("h2.hP")).filter((element) => {
+      if (element.closest(MESSAGE_BODY)) return false;
       if (element.closest('[aria-hidden="true"], [hidden]')) return false;
       const style = globalThis.getComputedStyle?.(element);
       return !style || (style.display !== "none" && style.visibility !== "hidden");
     });
-    if (candidates.length === 1) return candidates[0];
+    if (candidates.length === 1) return { element: candidates[0], ambiguous: false };
     const inMain = candidates.filter((element) => element.closest('[role="main"]'));
-    return inMain.length === 1 ? inMain[0] : null;
+    if (inMain.length === 1) return { element: inMain[0], ambiguous: false };
+    // Fail closed, but say which failure it was: "open a thread first" is wrong
+    // and unactionable when a thread is plainly open.
+    return { element: null, ambiguous: candidates.length > 1 };
+  }
+
+  function subjectEl() {
+    return subjectState().element;
+  }
+
+  // "thread" | "ambiguous" | "none" — what the UI should tell the user.
+  function pageState() {
+    if (currentIdentity()) return "thread";
+    return subjectState().ambiguous ? "ambiguous" : "none";
   }
 
   // Never search the whole Gmail main region. Inbox rows live there too. Walk
@@ -79,10 +104,6 @@
     );
   }
 
-  function isThreadOpen() {
-    return Boolean(currentIdentity());
-  }
-
   function threadUrl(identity) {
     return `https://mail.google.com/mail/u/${identity.accountIndex}/#all/${encodeURIComponent(
       identity.id
@@ -90,6 +111,26 @@
   }
 
   const cachedIk = new Map();
+  // Keys Gmail has already rejected. Remembering the individual stale value,
+  // rather than caching a blanket null, lets a later valid key still be found
+  // instead of degrading every subsequent copy for the life of the page.
+  const staleIk = new Set();
+
+  function markIkStale(accountIndex, ik) {
+    if (ik) staleIk.add(ik);
+    cachedIk.delete(accountIndex);
+  }
+
+  // Gmail's date rendering carries no offset, so toIso reinterprets it in this
+  // browser's zone. Recording the zone keeps that derivation auditable rather
+  // than silently authoritative.
+  function captureTimezone() {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+    } catch (_) {
+      return "";
+    }
+  }
 
   function findIk(accountIndex) {
     if (cachedIk.has(accountIndex)) return cachedIk.get(accountIndex);
@@ -104,7 +145,7 @@
           continue;
         }
         const ik = url.searchParams.get("ik") || "";
-        if (/^[A-Za-z0-9_-]{4,}$/.test(ik)) {
+        if (/^[A-Za-z0-9_-]{4,}$/.test(ik) && !staleIk.has(ik)) {
           cachedIk.set(accountIndex, ik);
           return ik;
         }
@@ -120,7 +161,7 @@
       const match =
         body.match(/[?&]ik=([A-Za-z0-9_-]{4,})/) ||
         body.match(/["']ik["']\s*:\s*["']([A-Za-z0-9_-]{4,})["']/);
-      if (match) {
+      if (match && !staleIk.has(match[1])) {
         cachedIk.set(accountIndex, match[1]);
         return match[1];
       }
@@ -232,6 +273,7 @@
       accountIndex: identity.accountIndex,
       subject: identity.subject,
       url: threadUrl(identity),
+      timezone: captureTimezone(),
       source: "visible-page-partial",
       quotedTrimmed,
       completeness: { messages: false, headers: false, attachments: false },
@@ -243,7 +285,12 @@
 
   async function getThread() {
     const identity = currentIdentity();
-    if (!identity) return { ok: false, error: ERR.NOT_ON_THREAD };
+    if (!identity) {
+      return {
+        ok: false,
+        error: subjectState().ambiguous ? ERR.AMBIGUOUS_PAGE : ERR.NOT_ON_THREAD,
+      };
+    }
 
     const ik = findIk(identity.accountIndex);
     let failure = null;
@@ -259,7 +306,7 @@
         if (!resp.ok) {
           failure = `Gmail returned HTTP ${resp.status}; the visible-page fallback was used.`;
           if (attempt + 1 < attempts.length) {
-            cachedIk.set(identity.accountIndex, null);
+            markIkStale(identity.accountIndex, attempts[attempt]);
             continue;
           }
           break;
@@ -279,6 +326,7 @@
               threadId: identity.id,
               accountIndex: identity.accountIndex,
               url: threadUrl(identity),
+              timezone: captureTimezone(),
             },
           };
         }
@@ -291,7 +339,7 @@
             ? "Gmail's print view exceeded the 25 MB safety limit; the visible-page fallback was used."
             : "Gmail's print view could not be loaded; the visible-page fallback was used.";
         if (e?.code !== "PRINT_VIEW_TOO_LARGE" && attempt + 1 < attempts.length) {
-          cachedIk.set(identity.accountIndex, null);
+          markIkStale(identity.accountIndex, attempts[attempt]);
           continue;
         }
         break;
@@ -308,21 +356,30 @@
   // Supplemental attachment discovery from Gmail's own attachment chips. No
   // document-wide substring selector is used, and URLs are validated downstream
   // before any request can occur.
+  //
+  // One chip can match this selector through several arms at once: the filename
+  // span, an aria title, and the download_url carrier are frequently different
+  // nodes in the same chip. Matching per element reported a single attachment
+  // two or three times, so discovery is collapsed to one candidate per chip.
+  const CHIP_SELECTOR = "span.aV3, div.aQA span[title], [download_url]";
+
   function getAttachments(thread) {
     const context = {
       threadId: thread?.threadId,
       accountIndex: thread?.accountIndex,
     };
-    const out = [];
-    const seen = new Set();
-    const selector = "span.aV3, div.aQA span[title], [download_url]";
+    const candidates = [];
     let truncated = false;
 
-    for (const element of document.querySelectorAll(selector)) {
-      if (out.length >= MAX_LIVE_ATTACHMENTS) {
+    for (const element of document.querySelectorAll(CHIP_SELECTOR)) {
+      if (candidates.length >= MAX_LIVE_ATTACHMENTS) {
         truncated = true;
         break;
       }
+      // Gmail renders its chips beside the body, never inside it. A message
+      // body carrying chip markup of its own is the sender's HTML, not Gmail's,
+      // and was able to add attacker-named attachments to the thread.
+      if (element.closest(MESSAGE_BODY)) continue;
       const carrier =
         element.closest("[download_url]") ||
         element.querySelector?.("[download_url]") ||
@@ -337,13 +394,7 @@
         ""
       ).trim();
       if (!name) continue;
-
-      const key = href
-        ? S.resolveAttachmentUrl(href, context) || `rejected:${name}:${href}`
-        : `no-link:${name}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push({
+      candidates.push({
         name,
         downloadUrl,
         href,
@@ -351,14 +402,35 @@
         source: "live-page",
       });
     }
-    return { items: out, truncated };
+
+    // When a chip's filename node and its link node are separate elements, the
+    // pass above yields one linked candidate and one bare name for the same
+    // file. Keep the linked one: a candidate with no capability can never be
+    // verified, fetched, or downloaded, and would only be reported as missing.
+    const linked = new Set(
+      candidates.filter((item) => item.href).map((item) => AT.nameKey(item.name))
+    );
+    const items = [];
+    const seenKeys = new Set();
+    for (const item of candidates) {
+      if (!item.href && linked.has(AT.nameKey(item.name))) continue;
+      const key = item.href
+        ? S.resolveAttachmentUrl(item.href, context) ||
+          S.attachmentCapabilityKey(item.href) ||
+          `rejected:${AT.nameKey(item.name)}:${item.href}`
+        : `no-link:${AT.nameKey(item.name)}`;
+      if (seenKeys.has(key)) continue;
+      seenKeys.add(key);
+      items.push(item);
+    }
+    return { items, truncated };
   }
 
   CT.adapter = {
-    isThreadOpen,
     getThread,
     getAttachments,
     subjectElement: subjectEl,
+    pageState,
     identityMatches,
     threadId,
     currentIdentity,

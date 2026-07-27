@@ -36,8 +36,8 @@ test("cuts a Chinese-client quoted header block", () => {
   const body = [
     "ok! lets do it with 3500usd!",
     "",
-    "发件人: Moe Lueker <moelueker@gmail.com>",
-    "到: \"Jennifer\"<jennifer@globeinflu.com>",
+    "发件人: Sam Rivera <sam@example.net>",
+    "到: \"Jennifer\"<jennifer@example.com>",
     "日期: 周三, 2026-06-17 14:20:36",
     "主题: Re: Paid Collaboration Opportunity",
   ].join("\n");
@@ -118,8 +118,8 @@ test("cuts a delimiterless signature block", () => {
     "Best regards,",
     "Jennifer",
     "Business Development Manager",
-    "jennifer@globeinflu.com",
-    "www.globeinflu.com",
+    "jennifer@example.com",
+    "www.example.com",
   ].join("\n");
   const { text } = C.trimQuotedText(body);
   assert.strictEqual(text, "ok! lets do it with 3500usd!");

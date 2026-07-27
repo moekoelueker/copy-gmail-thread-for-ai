@@ -13,15 +13,17 @@ function fixture(name) {
   return fs.readFileSync(path.join(FIXTURES, name), "utf8");
 }
 
-async function start() {
+// extensionRoot lets a test load a built release archive instead of the
+// repository, so the shipped artifact is exercised and not just the source.
+async function start({ extensionRoot = ROOT } = {}) {
   const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "ctgfa-"));
   const context = await chromium.launchPersistentContext(userDataDir, {
     headless: false,
     acceptDownloads: true,
     args: [
       ...(process.env.HEADED ? [] : ["--headless=new"]),
-      `--disable-extensions-except=${ROOT}`,
-      `--load-extension=${ROOT}`,
+      `--disable-extensions-except=${extensionRoot}`,
+      `--load-extension=${extensionRoot}`,
       "--no-first-run",
       "--no-default-browser-check",
       "--disable-background-networking",
@@ -39,6 +41,7 @@ async function start() {
     printViewStatus: 200,
     printViewDelay: 0,
     rejectIk: false,
+    onAttachmentRequest: null,
     expectedThreadId: "THREAD_REAL",
     requests: [],
     externalRequests: [],
@@ -90,6 +93,11 @@ async function start() {
     if (url.searchParams.get("view") === "att") {
       if (url.searchParams.get("th") !== state.expectedThreadId) {
         return route.fulfill({ status: 404, body: "wrong thread" });
+      }
+      // Lets a test change page state at a precise point mid-capture without
+      // racing a timer. Awaited before the response is produced.
+      if (state.onAttachmentRequest) {
+        await state.onAttachmentRequest(url);
       }
       if (url.searchParams.get("kind") === "csv") {
         return route.fulfill({

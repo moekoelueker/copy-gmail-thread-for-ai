@@ -147,7 +147,11 @@
     };
   }
 
-  const ATTACH_ICON = 'img[src*="/icons/mail/images/"], img[src*="/ui/v1/icons/mail"]';
+  // Broad selector, narrow decision: T.isGmailUiIcon checks the origin. Matching
+  // the path as a substring let an email body host its own
+  // ".../icons/mail/images/x.gif" beside a <b>filename</b> and inject a
+  // fabricated attachment into that sender's own message.
+  const ATTACH_ICON = 'img[src*="/icons/mail/"]';
   const SIZE_RE = /\b(\d+(?:[.,]\d+)?)\s*([KMG])B?\b/i;
 
   function attachmentContainer(node, scope) {
@@ -217,6 +221,7 @@
     // Some print views expose only an icon and filename. Preserve the metadata,
     // but mark attachment delivery unverifiable because no safe Gmail URL exists.
     for (const icon of Array.from(scope.querySelectorAll(ATTACH_ICON))) {
+      if (!T.isGmailUiIcon(icon.getAttribute("src"))) continue;
       const container = attachmentContainer(icon, scope);
       if (container && handled.has(container)) continue;
       const name = attachmentName(icon);

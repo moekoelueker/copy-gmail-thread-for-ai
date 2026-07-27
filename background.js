@@ -43,26 +43,15 @@ function respondWithDownload(id, requestedPath, sendResponse) {
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg?.type !== "download") return false;
 
-  if (
-    sender.id !== chrome.runtime.id ||
-    sender.frameId !== 0 ||
-    !sender.tab?.url ||
-    !GMAIL.test(sender.tab.url)
-  ) {
-    sendResponse({ ok: false, error: "download request rejected" });
+  // The entire decision lives in lib/security.js so it can be tested directly
+  // against forged senders. Nothing here re-derives it or works around it.
+  const decision = S.authorizeDownload(msg, sender, chrome.runtime.id);
+  if (!decision.ok) {
+    console.warn("[copy-gmail-thread] refused a download request:", decision.error);
+    sendResponse({ ok: false, error: decision.error });
     return false;
   }
-
-  const accountIndex = S.accountIndexFromUrl(sender.tab.url);
-  const context = { accountIndex, threadId: msg.threadId };
-  const url = S.resolveAttachmentUrl(msg.url, context);
-  const path = String(msg.path || "");
-
-  if (!url || !S.safeDownloadPath(path)) {
-    console.warn("[copy-gmail-thread] refused an unsafe download request");
-    sendResponse({ ok: false, error: "unsafe download request rejected" });
-    return false;
-  }
+  const { url, path } = decision;
 
   chrome.downloads.download(
     { url, filename: path, conflictAction: "uniquify", saveAs: false },

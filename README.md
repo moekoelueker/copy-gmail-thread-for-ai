@@ -3,9 +3,12 @@
 Copy an open Gmail conversation into a structured, LLM-readable document—with
 clear sender, recipient, timestamp, body, and attachment attribution.
 
-The extension runs in Chrome on macOS and Windows. It does not ask for Google
-OAuth, an API key, or an extension account. It uses the Gmail session already
-open in the browser.
+The extension targets Chrome on macOS and Windows and uses only ordinary
+cross-platform Chrome APIs. It has been exercised end to end on macOS; the
+Windows path is reviewed but not yet run on a Windows machine, so treat it as
+untested until someone completes [docs/manual-test.md](docs/manual-test.md)
+there. It does not ask for Google OAuth, an API key, or an extension account.
+It uses the Gmail session already open in the browser.
 
 ## The problem it solves
 
@@ -30,7 +33,10 @@ This extension:
 
 No build step or terminal is required.
 
-1. On GitHub, choose **Code → Download ZIP**.
+1. Download the release archive if one is published, or on GitHub choose
+   **Code → Download ZIP**. The release archive contains only the ~20 files the
+   extension actually runs; the GitHub ZIP additionally contains the tests,
+   fixtures, tooling, and docs, which Chrome ignores.
 2. Unzip the download.
 3. In Chrome, open `chrome://extensions`.
 4. Turn on **Developer mode**.
@@ -83,6 +89,7 @@ The clipboard receives strict XML with Markdown inside CDATA:
 </participants>
 <attachment_count>1</attachment_count>
 <source>print-view</source>
+<capture_timezone>America/Los_Angeles</capture_timezone>
 <content_trust>untrusted_email_and_attachment_text</content_trust>
 <completeness messages="true" headers="true" attachments="true"/>
 <complete>true</complete>
@@ -129,6 +136,11 @@ returned, so a skipped candidate cannot be hidden by renumbering.
 Operational warnings—such as a text file that could not be inlined or a
 download that could not start—can appear even when capture completeness is
 true. Read warnings as well as the completeness flag.
+
+`local` is the timestamp Gmail displayed. `date` is derived from it, and Gmail
+renders without an offset, so the derivation assumes the browser's timezone —
+recorded as `<capture_timezone>` so a reader can check it. Where the two could
+disagree, `local` is the authoritative one.
 
 ## Attachments
 
@@ -223,16 +235,21 @@ dependency for browser tests.
 
 ```bash
 npm install
-npm test                 # pure Node unit tests
-npm run test:browser     # DOM conversion and parser tests in Chromium
-npm run test:e2e         # the installed extension against a network-blocked Gmail stand-in
+npm test                 # 83 pure Node unit tests
+npm run test:browser     # 51 DOM conversion and parser tests in Chromium
+npm run test:e2e         # 31 end-to-end tests driving the installed extension
 npm run test:all         # all of the above
+npm run package          # build a release archive of runtime files only
 ```
 
-The end-to-end harness loads the actual manifest and service worker. It verifies
-wrong-thread refusal, partial-capture signaling, clipboard behavior, successful
-downloads, deterministic paths, and rejection of crafted off-origin attachment
-metadata. The fixture workflow disables JavaScript and all network access while
+The end-to-end harness loads the actual manifest and service worker, and one
+test installs the built release archive rather than the source tree. Between
+them they verify wrong-thread refusal, partial-capture signaling, clipboard
+behavior, successful downloads, deterministic paths, refusal of a download
+request that has no Gmail tab, refusal of one whose tab has changed account
+mid-capture, rejection of crafted off-origin attachment metadata, and the two
+shapes of email markup that can imitate Gmail's own attachment and subject
+chrome. The fixture workflow disables JavaScript and all network access while
 redacting a capture; see [docs/fixtures.md](docs/fixtures.md).
 
 Current boundaries:
@@ -253,6 +270,13 @@ Design rationale is in [docs/design/v2-design.md](docs/design/v2-design.md).
 Known limits and remaining work are in [docs/OPEN-ITEMS.md](docs/OPEN-ITEMS.md).
 The original adversarial review prompt is retained as a historical record in
 [docs/AUDIT-BRIEF.md](docs/AUDIT-BRIEF.md).
+
+## Privacy
+
+No server, no analytics, no storage, no account. The full statement is in
+[PRIVACY.md](PRIVACY.md), including what happens to a thread once you paste it
+into a third-party LLM — which is the one point where data leaves your machine,
+and it is your paste that sends it.
 
 ## License
 

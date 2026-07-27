@@ -73,7 +73,10 @@ async function init() {
   try {
     const resp = await chrome.tabs.sendMessage(tab.id, { type: "ping" });
     if (resp && resp.onThread === false) {
-      $("hint").textContent = "No thread open — open an email first.";
+      $("hint").textContent =
+        resp.state === "ambiguous"
+          ? "Couldn't identify the open conversation. Reload Gmail and try again."
+          : "No thread open — open an email first.";
       $("copy").disabled = true;
       $("save").disabled = true;
     }

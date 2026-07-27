@@ -82,7 +82,7 @@ test("subjectsMatch catches a fetched thread that isn't the open one", () => {
   assert.strictEqual(
     T.subjectsMatch(
       "linda_schuh_, getrippit and others posted something new",
-      "Subject: Paid Collaboration Opportunity with MiniMax"
+      "Subject: Paid Collaboration Opportunity with Northwind"
     ),
     false
   );
@@ -119,13 +119,13 @@ test("parseSizeBytes handles Gmail units and rejects ambiguous text", () => {
 
 test("normalizeAddress removes angle brackets that would read as markup", () => {
   assert.strictEqual(
-    T.normalizeAddress("Moe Lueker <moelueker@gmail.com>"),
-    "Moe Lueker (moelueker@gmail.com)"
+    T.normalizeAddress("Sam Rivera <sam@example.net>"),
+    "Sam Rivera (sam@example.net)"
   );
   assert.strictEqual(T.normalizeAddress("<a@b.com>"), "a@b.com");
   assert.strictEqual(T.normalizeAddress("a@b.com"), "a@b.com");
   assert.strictEqual(T.normalizeAddress('"Jennifer" <j@x.com>'), "Jennifer (j@x.com)");
-  assert.strictEqual(T.normalizeAddress("moelueker <moelueker@gmail.com>"), "moelueker (moelueker@gmail.com)");
+  assert.strictEqual(T.normalizeAddress("sam <sam@example.net>"), "sam (sam@example.net)");
 });
 
 test("no normalized address can contain a raw angle bracket", () => {
@@ -149,4 +149,34 @@ test("isSafeUrl rejects script and data URLs", () => {
   assert.ok(!T.isSafeUrl("data:text/html,<script>"));
   assert.ok(!T.isSafeUrl("https:example.com"));
   assert.ok(!T.isSafeUrl("https://user:password@example.com"));
+});
+
+test("Gmail interface icons are recognised by origin, not by path", () => {
+  for (const good of [
+    "https://ssl.gstatic.com/ui/v1/icons/mail/images/pdf.gif",
+    "https://www.gstatic.com/icons/mail/images/generic.gif",
+    "//ssl.gstatic.com/ui/v1/icons/mail/images/pdf.gif",
+  ]) {
+    assert.strictEqual(T.isGmailUiIcon(good), true, good);
+    assert.strictEqual(T.isGmailUiAsset(good), true, good);
+  }
+
+  // An email body can host any path it likes. Treating these as Gmail's own
+  // markup let a sender forge an attachment entry in their own message.
+  for (const hostile of [
+    "https://evil.example/icons/mail/images/pdf.gif",
+    "http://ssl.gstatic.com/ui/v1/icons/mail/images/pdf.gif",
+    "https://ssl.gstatic.com.evil.example/icons/mail/images/pdf.gif",
+    "https://gstatic.com.evil.example/icons/mail/x.gif",
+    "/icons/mail/images/pdf.gif",
+    "icons/mail/images/pdf.gif",
+    "javascript:alert(1)",
+    "",
+  ]) {
+    assert.strictEqual(T.isGmailUiIcon(hostile), false, hostile);
+  }
+
+  // gstatic assets that are not attachment glyphs are still interface chrome.
+  assert.strictEqual(T.isGmailUiAsset("https://ssl.gstatic.com/images/branding/x.png"), true);
+  assert.strictEqual(T.isGmailUiIcon("https://ssl.gstatic.com/images/branding/x.png"), false);
 });
