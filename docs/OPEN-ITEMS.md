@@ -26,8 +26,10 @@ fixture.
 
 `npm run package` builds a release archive containing only the ~20 runtime
 files, and an end-to-end test installs that archive and drives it, so the
-shipped artifact is exercised rather than the source tree. There is still no
-signed package or Chrome Web Store listing, and updates remain manual.
+shipped artifact is exercised rather than the source tree. Tagged release
+archives are published on the GitHub Releases page (first: v2.1.1), so users
+can install without downloading the whole repository. There is still no
+Chrome Web Store listing, and updates remain manual.
 
 A Web Store listing would improve updates but introduces silent auto-update and
 publisher-account considerations; that decision remains explicitly deferred.
@@ -57,7 +59,6 @@ requirement if that decision is revisited.
 ## Future work worth considering
 
 - add reviewed live-Gmail fixtures for the cases above;
-- publish tagged release archives so users stop installing the whole repository;
 - investigate whether Gmail exposes a stable mailbox-owner signal without
   adding OAuth or broader permissions;
 - add localized recipient-label fixtures only after observing real markup.

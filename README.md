@@ -33,10 +33,11 @@ This extension:
 
 No build step or terminal is required.
 
-1. Download the release archive if one is published, or on GitHub choose
-   **Code → Download ZIP**. The release archive contains only the ~20 files the
-   extension actually runs; the GitHub ZIP additionally contains the tests,
-   fixtures, tooling, and docs, which Chrome ignores.
+1. Download the latest release archive from the
+   [Releases page](https://github.com/moekoelueker/copy-gmail-thread-for-ai/releases),
+   or on GitHub choose **Code → Download ZIP**. The release archive contains
+   only the ~20 files the extension actually runs; the GitHub ZIP additionally
+   contains the tests, fixtures, tooling, and docs, which Chrome ignores.
 2. Unzip the download.
 3. In Chrome, open `chrome://extensions`.
 4. Turn on **Developer mode**.
