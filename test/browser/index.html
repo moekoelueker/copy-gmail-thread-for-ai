@@ -15,8 +15,8 @@
          passes for code you just changed. -->
     <script>
       const V = "?v=" + Date.now();
-      for (const m of ["text", "richtext", "clean"]) {
-        document.write('<script src="../../lib/' + m + '.js' + V + '"><\/script>');
+      for (const m of ["lib/text", "lib/richtext", "lib/clean", "adapters/gmail"]) {
+        document.write('<script src="../../' + m + '.js' + V + '"><\/script>');
       }
     </script>
     <script>
@@ -138,6 +138,32 @@
         stripped("<div>See:<blockquote>cited line</blockquote></div>"),
         (a) => a.includes("> cited line")
       );
+
+      // ---- attachment extraction from print-view markup ----
+      // Shape taken from a real thread: filetype icon, spacer cell, bold name,
+      // size. Previously these leaked into the body as half-empty tables and
+      // never became structured attachments at all.
+      const ATTACH_HTML =
+        '<div>See attached.<table><tr>' +
+        '<td><img src="https://ssl.gstatic.com/ui/v1/icons/mail/images/pdf.gif"></td><td></td>' +
+        '<td><b>MiniMax_Signed.pdf</b> 153K</td></tr></table></div>';
+
+      (function () {
+        const d = frag(ATTACH_HTML);
+        const found = CT.adapter.extractAttachments(d);
+        check("attachment name extracted", found.length && found[0].name, "MiniMax_Signed.pdf");
+        check("attachment size extracted", found.length && found[0].size, "153K");
+        check(
+          "attachment markup removed from the body",
+          CT.richtext.toMarkdown(d),
+          "See attached."
+        );
+      })();
+
+      (function () {
+        const d = frag('<div>Body only.</div>');
+        check("no attachments found in a plain body", CT.adapter.extractAttachments(d).length, 0);
+      })();
 
       // ---- end-to-end shape ----
       check(

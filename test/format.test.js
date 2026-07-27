@@ -53,8 +53,54 @@ test("escapes attribute values", () => {
   );
   assert.ok(out.includes("&quot;"), "quotes not escaped in attribute");
   assert.ok(out.includes("&amp;"), "ampersand not escaped in attribute");
-  const fromLine = out.split("\n").find((l) => l.startsWith("<from "));
-  assert.ok(/^<from name="[^"]*" email="[^"]*"\/>$/.test(fromLine), fromLine);
+  // A stray quote in a display name must not be able to break out of the tag.
+  const head = out.split("\n").find((l) => l.startsWith("<message "));
+  assert.ok(/^<message( [a-z_]+="[^"]*")+>$/.test(head), head);
+});
+
+test("sender and timing sit on the message tag itself", () => {
+  const out = F.build(thread());
+  const head = out.split("\n").find((l) => l.startsWith("<message "));
+  assert.ok(head.includes('from="Jane Doe"'), head);
+  assert.ok(head.includes('email="jane@acme.com"'), head);
+  assert.ok(!out.includes("<from "), "sender should no longer be a child element");
+});
+
+test("carries the local timestamp alongside UTC", () => {
+  // An evening reply in a western timezone lands on the next UTC day. Without
+  // the local string a reader concludes the response took a day when it took
+  // twenty minutes.
+  const out = F.build(
+    thread({ messages: [msg({ date: "2026-06-15T02:49:00.000Z", dateRaw: "Sun, Jun 14, 7:49 PM" })] })
+  );
+  assert.ok(out.includes('date="2026-06-15T02:49:00.000Z"'));
+  assert.ok(out.includes('local="Sun, Jun 14, 7:49 PM"'));
+});
+
+test("lists participants once each, in first-seen order", () => {
+  const out = F.build(
+    thread({
+      messages: [
+        msg({ n: 1, from: { name: "Jennifer", email: "j@x.com" } }),
+        msg({ n: 2, from: { name: "Moe Lueker", email: "m@y.com" } }),
+        msg({ n: 3, from: { name: "Jennifer", email: "j@x.com" } }),
+      ],
+    })
+  );
+  const line = out.split("\n").find((l) => l.startsWith("<participants>"));
+  assert.strictEqual(line, "<participants>Jennifer (j@x.com); Moe Lueker (m@y.com)</participants>");
+});
+
+test("summarises attachment count across the thread", () => {
+  const out = F.build(
+    thread({
+      messages: [
+        msg({ n: 1, attachments: [{ name: "a.pdf" }] }),
+        msg({ n: 2, attachments: [{ name: "b.pdf" }, { name: "c.pdf" }] }),
+      ],
+    })
+  );
+  assert.ok(out.includes("<attachment_count>3</attachment_count>"), out);
 });
 
 test("omits empty recipient tags", () => {
@@ -81,9 +127,9 @@ test("an incomplete capture is declared in the output, not just the toast", () =
   assert.ok(/<note>[^<]*collapsed/i.test(out), "no warning note for a partial capture");
 });
 
-test("an unparseable date degrades to date_raw", () => {
+test("an unparseable date degrades to the local string only", () => {
   const out = F.build(thread({ messages: [msg({ date: null, dateRaw: "sometime Tuesday" })] }));
-  assert.ok(out.includes('date_raw="sometime Tuesday"'));
+  assert.ok(out.includes('local="sometime Tuesday"'));
   assert.ok(!/ date="/.test(out), "emitted a fabricated date attribute");
 });
 

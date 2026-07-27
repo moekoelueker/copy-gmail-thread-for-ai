@@ -146,12 +146,67 @@
     const cells = row.querySelectorAll(":scope > td");
     const dateRaw = cells.length > 1 ? headerText(cells[cells.length - 1]).trim() : "";
 
-    return {
-      from: { name: name || email, email },
-      to: toLine ? splitAddresses(toLine.replace(/^to\b:?\s*/i, "")) : [],
-      cc: ccLine ? splitAddresses(ccLine.replace(/^cc\b:?\s*/i, "")) : [],
-      dateRaw,
-    };
+    // The print view does not always start the recipient list on its own line,
+    // so fall back to an inline match before giving up.
+    let to = toLine ? splitAddresses(toLine.replace(/^to\b:?\s*/i, "")) : [];
+    let cc = ccLine ? splitAddresses(ccLine.replace(/^cc\b:?\s*/i, "")) : [];
+    if (!to.length) {
+      const m = raw.match(/\bto:\s*([^\n]+)/i);
+      if (m) to = splitAddresses(m[1]);
+    }
+    if (!cc.length) {
+      const m = raw.match(/\bcc:\s*([^\n]+)/i);
+      if (m) cc = splitAddresses(m[1]);
+    }
+
+    // Recipients are the one header field whose markup we have not been able to
+    // pin down. Log the raw header when nothing parses, so the gap is
+    // diagnosable from the console instead of silently absent.
+    if (!to.length && !cc.length) {
+      console.debug(
+        "[copy-gmail-thread] no recipients parsed from header:",
+        JSON.stringify(raw.slice(0, 300))
+      );
+    }
+
+    return { from: { name: name || email, email }, to, cc, dateRaw };
+  }
+
+  // Attachments in the print view are rendered as a small table: a filetype
+  // icon from Gmail's own icon set, the filename in <b>, and a size. Parsing
+  // them here rather than from the live DOM means each attachment can be tied
+  // to the message it actually belongs to, instead of being lumped onto the
+  // thread as a guess.
+  const ATTACH_ICON = 'img[src*="/icons/mail/images/"], img[src*="/ui/v1/icons/mail"]';
+  const SIZE_RE = /\b(\d+(?:[.,]\d+)?)\s*([KMG])B?\b/i;
+
+  function extractAttachments(scope) {
+    const found = [];
+    for (const img of Array.from(scope.querySelectorAll(ATTACH_ICON))) {
+      const row = img.closest("tr") || img.closest("table");
+      if (!row) continue;
+
+      const name = (row.querySelector("b")?.textContent || "").trim();
+      const table = img.closest("table");
+      if (!name) {
+        if (table) table.remove();
+        continue;
+      }
+
+      const link = row.querySelector('a[href*="view=att"], a[href*="&disp="]');
+      const sizeMatch = (row.textContent || "").match(SIZE_RE);
+
+      found.push({
+        name,
+        size: sizeMatch ? sizeMatch[0].trim() : undefined,
+        url: link ? link.getAttribute("href") : null,
+      });
+
+      // Drop the table so the same information does not also appear as a
+      // half-empty markdown table inside the message body.
+      if (table) table.remove();
+    }
+    return found;
   }
 
   function parsePrintView(html, id) {
@@ -181,6 +236,10 @@
 
       const head = parseHeader(rows[0]);
       const bodyCell = rows[rows.length - 1];
+
+      // Order matters: pull attachments out before rendering, so their markup
+      // is removed from the body rather than rendered as leftover tables.
+      const attachments = extractAttachments(bodyCell);
 
       CL.stripQuoteNodes(bodyCell);
       const rendered = RT.toMarkdown(bodyCell);
@@ -325,5 +384,7 @@
     return out;
   }
 
-  CT.adapter = { isThreadOpen, getThread, getAttachments, threadId, ERR };
+  // extractAttachments is exported so the DOM tests can exercise it against
+  // Gmail's real attachment markup rather than assuming it matches.
+  CT.adapter = { isThreadOpen, getThread, getAttachments, threadId, extractAttachments, ERR };
 })();

@@ -31,12 +31,15 @@ This does the one thing: **press a key, get the whole thread, correctly.**
 <meta>
 <subject>Q3 renewal terms</subject>
 <messages>6</messages>
+<participants>Jane Doe (jane@acme.com); You (you@example.com)</participants>
+<date_range>2026-07-07T16:03:00.000Z to 2026-07-19T09:12:00.000Z</date_range>
+<attachment_count>2</attachment_count>
 <source>print-view</source>
 <complete>true</complete>
 <url>https://mail.google.com/mail/u/0/#all/…</url>
 </meta>
-<message n="1" date="2026-07-07T16:03:00.000Z">
-<from name="Jane Doe" email="jane@acme.com"/>
+<message n="1" date="2026-07-07T16:03:00.000Z" local="Mon, Jul 7, 9:03 AM"
+         from="Jane Doe" email="jane@acme.com">
 <to>you@example.com</to>
 <body>
 Numbers for the renewal are below.
@@ -47,6 +50,9 @@ Numbers for the renewal are below.
 
 Full detail is in [the deck](https://example.com/deck).
 </body>
+<attachments>
+<attachment name="Q3-forecast.pdf" type="application/pdf" size="240K"/>
+</attachments>
 </message>
 </email_thread>
 ```
@@ -56,6 +62,17 @@ Tagged structure with markdown bodies. Email text routinely contains `#`,
 boundaries — tags aren't. JSON would escape every newline into `\n` soup; YAML
 breaks on arbitrarily indented email. This form stays readable to you and
 parses reliably for a model.
+
+Three details exist specifically because a model reading the output got them
+wrong without them:
+
+- **`local` alongside the UTC `date`.** An evening reply in a western timezone
+  lands on the *next* UTC day, so "she replied twenty minutes later" reads as
+  "she replied the next day". Both stamps are given.
+- **Sender on the message tag**, not a child element, so one line identifies
+  who wrote what and when — and survives truncation.
+- **`participants` and `attachment_count` up front**, so a reader knows who is
+  involved and whether files exist without first reading the whole thread.
 
 **Every message is included**, including the ones Gmail collapsed, because the
 extension reads Gmail's own print view rather than scraping what happens to be
@@ -72,7 +89,7 @@ No build step, no dependencies, no account.
 4. Click **Load unpacked** and select the folder
 
 Open a Gmail thread and press **Option+C** (**Alt+C** on Windows and Linux), or
-click **Copy for AI** next to the subject line.
+click **Copy Email Thread** next to the subject line.
 
 ## Shortcuts
 
@@ -147,9 +164,10 @@ Stated plainly, because you should know these before trusting it:
 
 - **Recipients are best-effort.** `To` and `Cc` are parsed from the print
   view's header text, whose layout Google does not document.
-- **Attachments are attributed to the thread, not to individual messages.**
-  Gmail exposes them conversation-wide; guessing which message each belongs to
-  would be a fabrication.
+- **Attachment detection relies on Gmail's print-view markup.** Attachments are
+  attributed to the message that carried them, read from the print view rather
+  than the live page. If Google changes that markup, files will show up as
+  leftover text in the body instead of as structured attachments.
 - **Inline replies inside quoted text are kept along with their quotes.** When
   the quote-stripper detects real prose inside a quoted block it keeps the
   whole thing. Keeping noise beats deleting someone's reply.
@@ -167,8 +185,8 @@ Stated plainly, because you should know these before trusting it:
 No dependencies, no build. Requires Node 18+ only to run the tests.
 
 ```bash
-node --test "test/*.test.js"     # 44 tests: parsing, cleaning, formatting, sanitising
-open test/browser/index.html     # 26 DOM tests: the HTML→markdown converter
+node --test "test/*.test.js"     # 53 tests: parsing, cleaning, formatting, sanitising
+open test/browser/index.html     # 30 DOM tests: the HTML→markdown converter
 ```
 
 The browser tests exist separately because Node has no DOM, and adding one

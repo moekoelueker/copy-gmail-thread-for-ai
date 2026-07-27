@@ -176,7 +176,7 @@
     const b = document.createElement("button");
     b.type = "button";
     b.className = "ctl-btn";
-    b.textContent = "Copy for AI";
+    b.textContent = "Copy Email Thread";
     b.setAttribute("aria-label", "Copy this email thread as LLM-ready text");
     b.title = "Copy the full thread (see chrome://extensions/shortcuts for the keyboard shortcut)";
     b.addEventListener("click", async (e) => {

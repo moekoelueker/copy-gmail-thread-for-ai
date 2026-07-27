@@ -105,6 +105,46 @@ test("does not treat a leading double dash as a signature", () => {
   assert.ok(text.includes("This whole message"), "body was deleted by a leading --");
 });
 
+test("removes Gmail's [Quoted text hidden] placeholder", () => {
+  const { text } = C.trimQuotedText("Thanks, that works.\n\n[Quoted text hidden]");
+  assert.strictEqual(text, "Thanks, that works.");
+});
+
+test("cuts a delimiterless signature block", () => {
+  // Real shape from a live thread: no "--" delimiter anywhere.
+  const body = [
+    "ok! lets do it with 3500usd!",
+    "",
+    "Best regards,",
+    "Jennifer",
+    "Business Development Manager",
+    "jennifer@globeinflu.com",
+    "www.globeinflu.com",
+  ].join("\n");
+  const { text } = C.trimQuotedText(body);
+  assert.strictEqual(text, "ok! lets do it with 3500usd!");
+});
+
+test("signature cut never eats a postscript", () => {
+  const body = "Approved.\n\nBest,\nMoe\n\nP.S. wire the deposit by Friday.";
+  const { text } = C.trimQuotedText(body);
+  assert.ok(text.includes("P.S. wire the deposit"), "postscript was deleted");
+});
+
+test("signature cut never eats a trailing question", () => {
+  const body = "Sounds good.\n\nThanks,\nMoe\n\nOne more thing — can you confirm the date?";
+  const { text } = C.trimQuotedText(body);
+  assert.ok(text.includes("can you confirm the date?"), "question was deleted");
+});
+
+test("signature cut leaves a long tail alone", () => {
+  const body =
+    "Here you go.\n\nBest,\n" +
+    "Actually one more substantial point that runs on well past any plausible sign-off. ".repeat(6);
+  const { text } = C.trimQuotedText(body);
+  assert.ok(text.includes("substantial point"), "long tail was treated as a signature");
+});
+
 test("handles empty and blank input", () => {
   assert.strictEqual(C.trimQuotedText("").text, "");
   assert.strictEqual(C.trimQuotedText(null).text, "");
