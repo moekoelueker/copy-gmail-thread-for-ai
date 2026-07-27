@@ -388,9 +388,23 @@ add the dependency the project is avoiding.
 Redesign at 16, 48, and 128 px. Authored as SVG, rasterised with `rsvg-convert`
 (verified present) to transparent PNGs at exact sizes.
 
-Constraints: must read at 16 px, so a bold silhouette with no thin strokes, no more
-than two colours, and adequate contrast against both light and dark Chrome toolbars.
-Candidates are rendered as real PNGs and chosen visually rather than described.
+The mark is the universal copy glyph — two overlapping rounded squares, outlined,
+with no interior detail. Interior detail is precisely what destroys legibility at
+a distance, which an earlier "document with text rules" draft proved: it read as
+"files" rather than "copy". This is the same form Lucide, Anthropic, ChatGPT and
+Vercel's Geist all converge on, so it is instantly recognisable.
+
+Off-white (`#F7F6F0`) on near-black (`#0B0D0E`–`#23272C`) gives roughly 17:1
+contrast. A luminous rim at 22% opacity stops the tile merging into a dark
+browser toolbar. The house twist is that the back square is a frosted glass panel
+rather than a plain outline; that supplies the depth without blurs or noise,
+neither of which survive downscaling.
+
+16 px is a separate drawing. The gradient, sheen and back-square stroke all
+disappear or turn to mud at that size, so the tile goes flat and the geometry is
+retuned to keep the front square's interior open rather than closing into a dot.
+The front square keeps its outline there — filling it makes the mark read as
+generic "layers" instead of "copy".
 
 ## 16. Repository and documentation
 

@@ -1,13 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
-  <!-- Dedicated 16px drawing. The card overlap, gradient and rim of the large
-       icon are invisible or muddy at this size, so this is flat and single-card:
-       one solid coral tile, one white sheet, three rules. Classic and legible in
-       a tab strip on any theme. -->
-  <rect width="16" height="16" rx="3.5" fill="#E9573C"/>
-  <rect x="3" y="2.5" width="10" height="11" rx="2" fill="#FFFFFF"/>
-  <g fill="#E9573C">
-    <rect x="4.8" y="4.8" width="6.4" height="1.3" rx="0.65"/>
-    <rect x="4.8" y="7.2" width="6.4" height="1.3" rx="0.65"/>
-    <rect x="4.8" y="9.6" width="4" height="1.3" rx="0.65"/>
-  </g>
+  <!-- Dedicated 16px drawing. Same two-square copy glyph, but the gradient and
+       sheen of the large icon are invisible at this size, so the tile is flat.
+
+       The front square keeps its outline rather than becoming a solid fill: a
+       filled square reads as generic "layers", whereas the outline is what makes
+       it recognisably "copy". Geometry is tuned so the interior stays open
+       instead of closing up into a dot. -->
+  <rect width="16" height="16" rx="3.5" fill="#101315"/>
+  <rect x="0.4" y="0.4" width="15.2" height="15.2" rx="3.2" fill="none"
+        stroke="#F7F6F0" stroke-opacity="0.22" stroke-width="0.8"/>
+
+  <!-- back square: frosted, unstroked — a stroke here would close up at 16px -->
+  <rect x="3.0" y="2.6" width="6.3" height="6.3" rx="1.6"
+        fill="#F7F6F0" fill-opacity="0.45"/>
+
+  <!-- front square: crisp outline, filled with the tile so it occludes -->
+  <rect x="6.3" y="5.9" width="6.7" height="6.7" rx="1.8"
+        fill="#101315" stroke="#F7F6F0" stroke-width="1.3"/>
 </svg>
