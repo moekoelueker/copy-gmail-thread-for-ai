@@ -182,16 +182,40 @@ Stated plainly, because you should know these before trusting it:
 
 ## Development
 
-No dependencies, no build. Requires Node 18+ only to run the tests.
+**The extension itself has zero runtime dependencies and no build step.** What
+you clone is what Chrome runs. The tooling below is for tests only and never
+ships.
 
 ```bash
-node --test "test/*.test.js"     # 57 tests: parsing, cleaning, formatting, sanitising
-open test/browser/index.html     # 37 DOM tests: the HTML→markdown converter
+node --test "test/*.test.js"   # 57 unit tests — parsing, cleaning, formatting, sanitising
+open test/browser/index.html   # 37 DOM tests — the HTML→markdown converter, no install needed
+
+npm install                    # only for the end-to-end suite
+npm run test:e2e               # 13 tests — the real extension in a real browser
+npm run test:all               # everything
 ```
 
-The browser tests exist separately because Node has no DOM, and adding one
-would mean adding a dependency. The page prints `PASS n/n` and lists any
-failures.
+The end-to-end suite loads the actual extension into Chromium and serves a
+stand-in Gmail **at the real origin**, so the manifest match pattern, the
+same-origin print-view fetch, the service worker, the clipboard and the
+downloads API all behave exactly as in production — without touching a mailbox.
+It covers the regressions unit tests missed: copying the wrong conversation,
+attachments being extracted and then dropped, partial captures reported as
+complete.
+
+Run it headed to watch: `HEADED=1 npm run test:e2e`.
+
+Two implementation notes, both learned the hard way. It uses Playwright's
+Chromium rather than your system Chrome, because Chrome 137+ removed
+`--load-extension` and a stock Chrome silently starts with no extension loaded.
+And it runs the full browser in `--headless=new` rather than Playwright's
+`headless: true`, because the latter selects the headless *shell* binary, which
+cannot run extensions at all.
+
+To test against your own mail safely, see **[docs/fixtures.md](docs/fixtures.md)**:
+capture a thread's print view, run `npm run redact` to strip everything
+identifying while preserving the structure, and it becomes a permanent
+regression test.
 
 Layout:
 

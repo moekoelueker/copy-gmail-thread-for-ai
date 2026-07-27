@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8" /><title>Subject: Paid Collaboration Opportunity with MiniMax - Gmail</title></head>
+  <body>
+    <!-- Stand-in for Gmail's shell. Only the parts the adapter actually reads
+         are modelled: the ik-bearing link, the inbox list rows, and the open
+         thread's subject heading. -->
+    <a href="/mail/u/0/?ik=fixtureik123&amp;view=km">settings</a>
+
+    <div role="main">
+      <!-- Decoy list rows, placed BEFORE the open thread exactly as Gmail does.
+           An unscoped [data-legacy-thread-id] lookup matches one of these and
+           the extension silently copies a different conversation. That shipped
+           once; these rows exist so it cannot ship again. -->
+      <table class="inbox-list">
+        <tr data-legacy-thread-id="THREAD_DECOY_A"><td>Instagram digest</td></tr>
+        <tr data-legacy-thread-id="THREAD_DECOY_B"><td>Newsletter</td></tr>
+      </table>
+
+      <div class="thread">
+        <h2 class="hP" data-legacy-thread-id="THREAD_REAL">
+          Subject: Paid Collaboration Opportunity with MiniMax
+        </h2>
+
+        <!-- Visible-DOM structure, used only by the fallback path. -->
+        <div class="adn">
+          <span class="gD" name="Jennifer" email="jennifer@globeinflu.com">Jennifer</span>
+          <span class="g3" title="Sun, Jun 14, 2026 at 7:51 AM">Jun 14</span>
+          <div class="a3s">Visible copy of the first message only.</div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
