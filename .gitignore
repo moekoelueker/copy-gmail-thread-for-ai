@@ -3,5 +3,7 @@ node_modules/
 *.zip
 .playwright-mcp/
 # Unredacted captures. Real mail must never be committed; run npm run redact.
-printview-*.html
-test/e2e/fixtures/raw-*.html
+# Anchored to the repo root so it cannot swallow the synthetic fixtures in
+# test/e2e/fixtures/, which the suite needs on a fresh clone.
+/printview-*.html
+/test/e2e/fixtures/raw-*.html
