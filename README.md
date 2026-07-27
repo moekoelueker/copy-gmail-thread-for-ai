@@ -217,8 +217,9 @@ Other limits:
   provider’s policy. The extension itself performs no such upload;
 - ordinary hyperlinks are preserved, and a downstream client may choose to
   generate link previews;
-- recipient labels outside the tested language set may be missed and will make
-  header completeness false;
+- recipient labels outside the tested language set are not parsed; any header
+  line carrying an address the parser did not understand marks header
+  completeness false rather than being dropped silently;
 - branching reply relationships are flattened into Gmail’s print order;
 - the output does not identify which participant owns the mailbox;
 - quote and signature removal is conservative: some noise may remain so that
@@ -235,9 +236,9 @@ dependency for browser tests.
 
 ```bash
 npm install
-npm test                 # 83 pure Node unit tests
-npm run test:browser     # 51 DOM conversion and parser tests in Chromium
-npm run test:e2e         # 31 end-to-end tests driving the installed extension
+npm test                 # 84 pure Node unit tests
+npm run test:browser     # 61 DOM conversion and parser tests in Chromium
+npm run test:e2e         # 35 end-to-end tests driving the installed extension
 npm run test:all         # all of the above
 npm run package          # build a release archive of runtime files only
 ```
@@ -247,9 +248,10 @@ test installs the built release archive rather than the source tree. Between
 them they verify wrong-thread refusal, partial-capture signaling, clipboard
 behavior, successful downloads, deterministic paths, refusal of a download
 request that has no Gmail tab, refusal of one whose tab has changed account
-mid-capture, rejection of crafted off-origin attachment metadata, and the two
-shapes of email markup that can imitate Gmail's own attachment and subject
-chrome. The fixture workflow disables JavaScript and all network access while
+mid-capture, refusal to write the clipboard when the open conversation changes
+at any point during capture, rejection of crafted off-origin attachment
+metadata, and the two shapes of email markup that can imitate Gmail's own
+attachment and subject chrome. The fixture workflow disables JavaScript and all network access while
 redacting a capture; see [docs/fixtures.md](docs/fixtures.md).
 
 Current boundaries:

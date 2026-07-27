@@ -13,6 +13,8 @@
     AMBIGUOUS_PAGE:
       "Couldn't identify the open conversation on this page. Reload Gmail and try again.",
     THREAD_CHANGED: "The open conversation changed while copying. Nothing was copied.",
+    THREAD_CHANGED_AFTER_DOWNLOADS:
+      "The open conversation changed while copying. Nothing was copied; file downloads may already have started.",
     CLIPBOARD_BLOCKED:
       "Chrome blocked the clipboard. Click Gmail and retry; file downloads may already have started.",
   };
@@ -251,6 +253,21 @@
           "ATTACHMENT_PROCESSING_FAILED",
           "Attachment processing failed; message text was still copied."
         );
+      }
+
+      // The identity check above ran before attachment work, and inlining plus
+      // downloads are the longest part of a capture. The identity must still
+      // hold here, or the clipboard would claim a conversation the user has
+      // already left — the earlier refusal would be a policy enforced only on
+      // the shorter window.
+      if (!A.identityMatches(thread)) {
+        toast(
+          attachmentSummary.downloadStarted
+            ? MESSAGES.THREAD_CHANGED_AFTER_DOWNLOADS
+            : MESSAGES.THREAD_CHANGED,
+          { warn: true, sticky: true }
+        );
+        return;
       }
 
       thread.complete = captureComplete(thread);

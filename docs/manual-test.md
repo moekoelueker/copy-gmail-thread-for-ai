@@ -32,12 +32,17 @@ before a public release.
       No data or attachment may cross account indexes.
 - [ ] Test a non-Latin subject. It must copy the same subject or refuse; a
       merely similar subject must not pass.
+- [ ] Test a subject that is only punctuation (for example `!!!`). It must copy
+      with that exact subject rather than refuse.
 
 ## Attribution and content
 
 - [ ] Every message has the correct `n`, `from`, `email`, `date`, and `local`.
 - [ ] To, Cc, and Bcc recipients are under the correct message. Include a
       display name containing a comma.
+- [ ] A sender whose display name begins with a recipient label word — Tobias,
+      Tom, Andrea — keeps `from` and `email` intact, and no fragment of the
+      name ("bias Weber") appears as a recipient or participant.
 - [ ] Each attachment appears exactly once under its message, or under
       `attribution="unknown"` with a warning.
 - [ ] Links and data tables remain useful.
@@ -91,6 +96,9 @@ before a public release.
       but `messages=false` and `MESSAGE_SKIPPED` are present.
 - [ ] Reload the extension while Gmail remains open. Stale controls disappear;
       reloading Gmail restores them without console errors.
+- [ ] Open a different conversation while a copy of a large thread is still
+      running. Nothing is copied and the toast says the conversation changed;
+      in save mode it also says downloads may already have started.
 - [ ] A very long thread (100+ messages) completes and leaves Chrome responsive.
 
 ## Security spot checks

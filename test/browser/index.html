@@ -231,6 +231,68 @@
         check("malformed recipient issue is explicit", head.issues.includes("recipients"), true);
       })();
 
+      // A sender's display name is not a recipient label. "Tobias" begins with
+      // "to" and "Andrea" with the German label "an"; scanning the head row
+      // with an optional-colon label regex split the sender line into a
+      // fabricated recipient and dropped the sender's own address.
+      (function () {
+        const table = frag(
+          "<table><tr><td><b>Tobias Weber</b> tobias.weber@example.com</td>" +
+            "<td>Sun, Jun 14, 2026 at 7:51 AM</td></tr>" +
+            "<tr><td>to: Sam Rivera &lt;sam@example.net&gt;</td></tr>" +
+            "<tr><td>Body text here.</td></tr></table>"
+        ).querySelector("table");
+        const rows = table.querySelectorAll(":scope > tbody > tr, :scope > tr");
+        const head = CT.adapter.parseHeader(rows);
+        check("label-prefixed sender keeps their address", head.from.email, "tobias.weber@example.com");
+        check("label-prefixed sender fabricates no recipient", head.to.length, 1);
+        check("label-prefixed sender's real recipient survives", head.to[0]?.email, "sam@example.net");
+        check("label-prefixed sender header stays complete", head.complete, true);
+      })();
+
+      // The label needs its colon, but the colon-bearing localized labels must
+      // keep working.
+      (function () {
+        const table = frag(
+          "<table><tr><td><b>Jennifer</b> jennifer@example.com</td><td>Jul 7, 2026</td></tr>" +
+            "<tr><td>An: Max Mustermann &lt;max@example.de&gt;</td></tr>" +
+            "<tr><td>Body.</td></tr></table>"
+        ).querySelector("table");
+        const rows = table.querySelectorAll(":scope > tbody > tr, :scope > tr");
+        const head = CT.adapter.parseHeader(rows);
+        check("German An: label still parses", head.to[0]?.email, "max@example.de");
+        check("German An: header is complete", head.complete, true);
+      })();
+
+      // An unlabeled header line that still carries an address is recipient
+      // data the parser failed to understand. It must flag the header partial
+      // instead of vanishing silently.
+      (function () {
+        const table = frag(
+          "<table><tr><td><b>Jennifer</b> jennifer@example.com</td><td>Jul 7, 2026</td></tr>" +
+            "<tr><td>to: Sam Rivera &lt;sam@example.net&gt;,<br>Casey Legal &lt;legal@example.org&gt;</td></tr>" +
+            "<tr><td>Body.</td></tr></table>"
+        ).querySelector("table");
+        const rows = table.querySelectorAll(":scope > tbody > tr, :scope > tr");
+        const head = CT.adapter.parseHeader(rows);
+        check("unparsed address line marks recipients incomplete", head.issues.includes("recipients"), true);
+        check("unparsed address line invents no recipient", head.to.length, 1);
+      })();
+
+      // Reply-To is a known header this model deliberately omits. It must
+      // neither become a recipient nor flag the header as partial.
+      (function () {
+        const table = frag(
+          "<table><tr><td><b>Jennifer</b> jennifer@example.com</td><td>Jul 7, 2026</td></tr>" +
+            "<tr><td>Reply-To: bounce@example.com<br>to: Sam Rivera &lt;sam@example.net&gt;</td></tr>" +
+            "<tr><td>Body.</td></tr></table>"
+        ).querySelector("table");
+        const rows = table.querySelectorAll(":scope > tbody > tr, :scope > tr");
+        const head = CT.adapter.parseHeader(rows);
+        check("reply-to does not become a recipient", head.to.length, 1);
+        check("reply-to does not flag the header", head.complete, true);
+      })();
+
       // A bad candidate table must turn the entire parse partial.
       (function () {
         const html =

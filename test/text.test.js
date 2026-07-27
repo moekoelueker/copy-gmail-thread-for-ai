@@ -110,6 +110,17 @@ test("subjectsMatch does not accept substring or non-Latin collisions", () => {
   assert.strictEqual(T.subjectsMatch("契約更新", "契約更新"), true);
 });
 
+test("subjectsMatch accepts a subject that is entirely punctuation", () => {
+  // "!!!" normalizes to nothing. The folded originals must then be compared
+  // exactly instead of refusing the user's own thread as a different
+  // conversation — while distinct punctuation still fails closed.
+  assert.strictEqual(T.subjectsMatch("!!!", "!!!"), true);
+  assert.strictEqual(T.subjectsMatch("Re: !!!", "!!!"), true);
+  assert.strictEqual(T.subjectsMatch("!!!", "???"), false);
+  assert.strictEqual(T.subjectsMatch("!!!", ""), false);
+  assert.strictEqual(T.subjectsMatch("", "!!!"), false);
+});
+
 test("parseSizeBytes handles Gmail units and rejects ambiguous text", () => {
   assert.strictEqual(T.parseSizeBytes("153K"), 153 * 1024);
   assert.strictEqual(T.parseSizeBytes("1.5 MB"), Math.round(1.5 * 1024 * 1024));

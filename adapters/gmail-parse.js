@@ -87,11 +87,20 @@
     return { name: name || email, email };
   }
 
+  // The colon is mandatory. With it optional, any line beginning with a label
+  // word was parsed as a recipient list — including the sender head row, where
+  // "Tobias Weber <tw@…>" became the to-recipient "bias Weber" and "Andrea"
+  // fed the German label "an". A locale that renders labels without a colon
+  // degrades to an explicit HEADER_INCOMPLETE instead of silent corruption.
   const RECIPIENT_LABELS = [
-    { key: "bcc", re: /^(?:bcc|blind copy|密送|密件副本)\s*[:：]?\s*/iu },
-    { key: "cc", re: /^(?:cc|copy|kopie|抄送|副本)\s*[:：]?\s*/iu },
-    { key: "to", re: /^(?:to|an|à|para|收件人|到|宛先)\s*[:：]?\s*/iu },
+    { key: "bcc", re: /^(?:bcc|blind copy|密送|密件副本)\s*[:：]\s*/iu },
+    { key: "cc", re: /^(?:cc|copy|kopie|抄送|副本)\s*[:：]\s*/iu },
+    { key: "to", re: /^(?:to|an|à|para|收件人|到|宛先)\s*[:：]\s*/iu },
   ];
+
+  // Header lines this model knows about and deliberately does not carry.
+  // Recognized here so they cannot trip the unparsed-address check below.
+  const IGNORED_HEADER_LINE = /^reply-to\s*[:：]/i;
 
   function recipientLine(line) {
     for (const label of RECIPIENT_LABELS) {
@@ -107,7 +116,15 @@
     const headRow = all[0];
     const headerRows = all.length > 1 ? all.slice(0, -1) : all;
     const raw = headerRows.map(headerText).join("\n");
-    const lines = raw
+
+    // The head row carries the sender and the date; Gmail renders recipient
+    // labels only on the rows between it and the body. Scanning the head row
+    // let a sender display name that merely begins with a label word be split
+    // into a fabricated recipient.
+    const recipientLines = headerRows
+      .slice(1)
+      .map(headerText)
+      .join("\n")
       .split(/\r?\n/)
       .map((line) => line.trim())
       .filter(Boolean);
@@ -115,20 +132,25 @@
     const recipients = { to: [], cc: [], bcc: [] };
     const labeled = [];
     let recipientParsingComplete = true;
-    for (const line of lines) {
+    for (const line of recipientLines) {
       const parsed = recipientLine(line);
-      if (!parsed) continue;
+      if (!parsed) {
+        // An unlabeled line that still carries an address is recipient data
+        // this parser failed to understand — a wrapped list, an unsupported
+        // locale's label. Flag it rather than dropping it silently.
+        if (!IGNORED_HEADER_LINE.test(line) && EMAIL_RE.test(line)) {
+          recipientParsingComplete = false;
+        }
+        continue;
+      }
       labeled.push(line);
       const list = parseAddressList(parsed.value);
       if (!list.complete || !list.items.length) recipientParsingComplete = false;
       recipients[parsed.key].push(...list.items);
     }
 
-    const firstRecipient = lines.findIndex((line) => Boolean(recipientLine(line)));
-    const senderLines = firstRecipient >= 0 ? lines.slice(0, firstRecipient) : lines;
-    const senderBlob = senderLines.join(" ");
     const name = (headRow?.querySelector("b")?.textContent || "").trim();
-    const email = (senderBlob.match(EMAIL_RE) || [""])[0];
+    const email = (headerText(headRow).match(EMAIL_RE) || [""])[0];
 
     const cells = headRow?.querySelectorAll(":scope > td, :scope > th") || [];
     const dateRaw = cells.length > 1 ? headerText(cells[cells.length - 1]).trim() : "";

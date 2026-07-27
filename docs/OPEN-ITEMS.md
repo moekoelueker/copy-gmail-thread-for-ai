@@ -9,6 +9,9 @@ release, verify the cases in `manual-test.md`, especially:
 
 - current Gmail print-view markup on several real accounts;
 - multiple To/Cc/Bcc recipients and localized labels;
+- that recipient labels always carry a colon — the parser now requires one, and
+  a colonless locale would degrade to an explicit partial header;
+- senders whose display names begin with label words (Tobias, Tom, Andrea);
 - inline replies created by Gmail, Outlook, and Apple Mail;
 - attachments across multiple messages, including duplicate filenames;
 - Chrome’s real download preferences on macOS and Windows;
@@ -34,7 +37,10 @@ requirement if that decision is revisited.
 ## Known product limits
 
 - Gmail internals are undocumented and can break the adapter.
-- Recipient localization is incomplete.
+- Recipient localization is incomplete. A header line carrying an address the
+  parser does not understand (an unsupported locale's label, a wrapped list)
+  marks headers partial instead of being dropped silently; Reply-To is the one
+  header recognized and deliberately not carried.
 - The mailbox owner is not identified.
 - Branching reply relationships are flattened into print order.
 - Binary attachments are delivered, not parsed; there is no OCR.

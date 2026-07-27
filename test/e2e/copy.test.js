@@ -354,13 +354,15 @@ test("the service worker re-checks the account after the tab moves mid-capture",
   const out = await H.copyViaButton("save");
   assert.ok(switched, "the account switch never happened, so nothing was proven");
 
-  assert.ok(
-    out.includes('status="unsafe download request rejected"'),
-    "the worker authorized a download for an account the tab had left"
-  );
+  // Two independent boundaries must both hold. The worker refuses the
+  // post-switch download on its own authority — only the pre-switch file may
+  // exist — and the content script refuses to write a clipboard claim for a
+  // conversation whose account the tab has left.
   const after = (await H.downloads()).length;
   assert.strictEqual(after, before + 1, `expected exactly the pre-switch download, got ${after - before}`);
-  assert.match(await H.toastText(), /review warnings/i);
+  assert.strictEqual(out, "__NOT_COPIED__", "a clipboard claim was written for an abandoned account");
+  assert.match(await H.toastText(), /conversation changed/i);
+  assert.match(await H.toastText(), /downloads may already have started/i);
 
   await H.page.evaluate(() => history.pushState({}, "", "/mail/u/0/#all/THREAD_REAL"));
 });
@@ -488,4 +490,93 @@ test("a sender cannot inject attachment chips through a message body", async () 
   assert.ok(!out.includes('attribution="unknown"'));
   assert.ok(out.includes('<completeness messages="true" headers="true" attachments="true"/>'));
   assert.strictEqual(H.state.externalRequests.length, 0, H.state.externalRequests.join("\n"));
+});
+
+// A sender's display name can begin with a recipient label word: "Tobias"
+// starts with "to", "Andrea" with the German label "an". The header parser
+// once split both into a fabricated recipient, dropped the sender's address,
+// polluted the participant roster, and still declared the capture complete —
+// a silently wrong answer, this project's worst outcome.
+test("a sender named like a recipient label keeps their address", async () => {
+  H.state.printView = fixture("printview-negotiation.html")
+    .split("<b>Jennifer</b> jennifer@example.com")
+    .join("<b>Tobias Weber</b> tobias.weber@example.com")
+    .split("<b>Sam Rivera</b> sam@example.net")
+    .join("<b>Andrea Klein</b> andrea.klein@example.net");
+  await H.openThread();
+  const out = await H.copyViaButton();
+
+  // "Tobias Weber" contains "bias Weber", so match the fabricated attribute
+  // form, which cannot be a substring of the legitimate one.
+  assert.ok(!out.includes('name="bias Weber"'), "sender name was split into a fabricated recipient");
+  assert.ok(!out.includes('name="drea Klein"'), "sender name was split into a fabricated recipient");
+  assert.match(out, /<message n="1"[^>]*from="Tobias Weber" email="tobias\.weber@example\.com"/);
+  assert.match(out, /<message n="2"[^>]*from="Andrea Klein" email="andrea\.klein@example\.net"/);
+  assert.ok(out.includes('<participant name="Tobias Weber" email="tobias.weber@example.com"/>'));
+  assert.ok(out.includes('<completeness messages="true" headers="true" attachments="true"/>'));
+});
+
+// "!!!" normalizes to an empty identity string. The exact folded subject must
+// then be compared instead of refusing the user's own thread as a different
+// conversation and leaving it uncopyable.
+test("a punctuation-only subject still copies", async () => {
+  H.state.page = fixture("gmail-thread.html")
+    .replace(
+      /(<h2 class="hP" data-legacy-thread-id="THREAD_REAL">)[\s\S]*?(<\/h2>)/,
+      "$1!!!$2"
+    )
+    .replace(/<title>[\s\S]*?<\/title>/, "<title>!!! - Gmail</title>");
+  H.state.printView = fixture("printview-negotiation.html").replace(
+    /<title>[\s\S]*?<\/title>/,
+    "<title>Gmail - !!!</title>"
+  );
+  await H.openThread();
+  const out = await H.copyViaButton();
+  assert.ok(out.startsWith('<email_thread format_version="3">'), await H.toastText());
+  assert.ok(out.includes("<subject>!!!</subject>"));
+  assert.ok(out.includes("<messages>3</messages>"));
+});
+
+// The conversation-changed guard must hold for the whole capture. The
+// attachment phase is the longer window, and it was not re-checked before the
+// clipboard write.
+test("refuses if the conversation changes during attachment capture", async () => {
+  let switched = false;
+  H.state.onAttachmentRequest = async (url) => {
+    if (switched || url.searchParams.get("kind") !== "csv") return;
+    switched = true;
+    await H.page.evaluate(() => {
+      const heading = document.querySelector("h2.hP");
+      heading.setAttribute("data-legacy-thread-id", "THREAD_OTHER");
+      heading.textContent = "Another conversation";
+    });
+  };
+  await H.openThread();
+  const out = await H.copyViaButton();
+  assert.ok(switched, "the conversation switch never happened, so nothing was proven");
+  assert.strictEqual(out, "__NOT_COPIED__");
+  assert.match(await H.toastText(), /conversation changed/i);
+});
+
+// The same late refusal in save mode must not hide that downloads already
+// began before the conversation changed.
+test("a late conversation change reports downloads that already started", async () => {
+  const before = (await H.downloads()).length;
+  let switched = false;
+  H.state.onAttachmentRequest = async (url) => {
+    if (switched || url.searchParams.get("kind") !== "csv") return;
+    switched = true;
+    await H.page.evaluate(() => {
+      const heading = document.querySelector("h2.hP");
+      heading.setAttribute("data-legacy-thread-id", "THREAD_OTHER");
+      heading.textContent = "Another conversation";
+    });
+  };
+  await H.openThread();
+  const out = await H.copyViaButton("save");
+  assert.ok(switched, "the conversation switch never happened, so nothing was proven");
+  assert.strictEqual(out, "__NOT_COPIED__");
+  assert.match(await H.toastText(), /conversation changed/i);
+  assert.match(await H.toastText(), /downloads may already have started/i);
+  assert.ok((await H.downloads()).length > before, "the pre-switch download should have started");
 });

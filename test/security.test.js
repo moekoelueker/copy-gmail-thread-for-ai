@@ -212,4 +212,10 @@ test("extracts the Gmail account index without accepting another origin", () => 
   assert.strictEqual(S.accountIndexFromUrl("https://mail.google.com/mail/#inbox"), "0");
   assert.strictEqual(S.accountIndexFromUrl("https://mail.google.com/not-mail/u/0/"), null);
   assert.strictEqual(S.accountIndexFromUrl("https://evil.example/mail/u/0/"), null);
+  // Delegated mailboxes use /mail/b/<address>/ and are deliberately
+  // unsupported; they must fail closed rather than map onto account 0.
+  assert.strictEqual(
+    S.accountIndexFromUrl("https://mail.google.com/mail/b/team@example.com/#all/x"),
+    null
+  );
 });
