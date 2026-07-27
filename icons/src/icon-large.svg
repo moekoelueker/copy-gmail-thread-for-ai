@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <!-- 128px and 48px. Two offset cards read as "copy"; the ruled lines read as a
+       message. Coral accent from open-glass-ui, which holds contrast against
+       both light and dark browser toolbars.
+
+       The glass is deliberately restrained: one top-lit gradient and a hairline
+       rim. Anything heavier (blur, noise, layered speculars) turns to mud below
+       32px and bloats the file for no gain. -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FF8A76"/>
+      <stop offset="1" stop-color="#DE4C30"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.34"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="tileClip"><rect width="128" height="128" rx="28"/></clipPath>
+  </defs>
+
+  <g clip-path="url(#tileClip)">
+    <rect width="128" height="128" fill="url(#tile)"/>
+    <rect width="128" height="58" fill="url(#sheen)"/>
+  </g>
+  <rect x="1" y="1" width="126" height="126" rx="27" fill="none"
+        stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="2"/>
+
+  <rect x="32" y="26" width="52" height="62" rx="9" fill="#FFFFFF" opacity="0.42"/>
+  <rect x="46" y="42" width="52" height="62" rx="9" fill="#FFFFFF"/>
+  <g fill="#DE4C30">
+    <rect x="56" y="58" width="32" height="6" rx="3"/>
+    <rect x="56" y="72" width="32" height="6" rx="3"/>
+    <rect x="56" y="86" width="20" height="6" rx="3"/>
+  </g>
+</svg>

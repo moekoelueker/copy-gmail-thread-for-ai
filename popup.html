@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="popup.css" />
+    <title>Copy Gmail Thread for AI</title>
+  </head>
+  <body>
+    <header class="head">
+      <img src="icons/icon48.png" alt="" width="24" height="24" />
+      <h1>Copy Gmail Thread for AI</h1>
+    </header>
+
+    <main id="onGmail" hidden>
+      <button id="copy" class="action primary">Copy thread</button>
+      <button id="save" class="action">Copy + save attachments</button>
+      <p id="hint" class="hint"></p>
+    </main>
+
+    <main id="offGmail" hidden>
+      <p class="explain">
+        This works inside Gmail. Open an email thread at
+        <strong>mail.google.com</strong>, then use the shortcut or this popup.
+      </p>
+      <button id="openGmail" class="action primary">Open Gmail</button>
+    </main>
+
+    <footer class="foot">
+      <dl id="shortcuts" class="shortcuts"></dl>
+      <button id="remap" class="link">Change shortcuts</button>
+    </footer>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

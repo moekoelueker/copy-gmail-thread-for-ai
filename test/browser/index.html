@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>DOM tests</title>
+  </head>
+  <body>
+    <!-- lib/richtext.js and lib/clean.js's DOM half need a real DOM, which Node
+         has no way to provide without pulling in a dependency. These run in
+         headless Chrome instead; see test/run-browser.sh. -->
+    <div id="out">running</div>
+
+    <!-- Loaded with a cache-buster: when this page is served over HTTP the
+         browser will happily re-run stale copies of the libraries and report
+         passes for code you just changed. -->
+    <script>
+      const V = "?v=" + Date.now();
+      for (const m of ["text", "richtext", "clean"]) {
+        document.write('<script src="../../lib/' + m + '.js' + V + '"><\/script>');
+      }
+    </script>
+    <script>
+      const results = [];
+
+      function frag(html) {
+        const d = document.createElement("div");
+        d.innerHTML = html; // test scaffolding only, never used by the extension
+        return d;
+      }
+      const md = (html) => CT.richtext.toMarkdown(frag(html));
+
+      function check(name, actual, expected) {
+        const ok = typeof expected === "function" ? expected(actual) : actual === expected;
+        results.push({ name, ok, actual });
+      }
+
+      // ---- links ----
+      check("link becomes markdown", md('<a href="https://ex.com/a">Docs</a>'), "[Docs](https://ex.com/a)");
+      check(
+        "gmail redirect unwrapped",
+        md('<a href="https://www.google.com/url?q=https%3A%2F%2Fex.com%2Fa&amp;sa=D">Docs</a>'),
+        "[Docs](https://ex.com/a)"
+      );
+      check("javascript href dropped", md('<a href="javascript:alert(1)">Click</a>'), "Click");
+      check("bare url not double-wrapped", md('<a href="https://ex.com">https://ex.com</a>'), "https://ex.com");
+
+      // ---- images ----
+      check(
+        "base64 image never inlined",
+        md('<img alt="logo" src="data:image/png;base64,AAAA">'),
+        (a) => a === "[inline image: logo]"
+      );
+      check("remote image kept", md('<img alt="x" src="https://ex.com/i.png">'), "![x](https://ex.com/i.png)");
+
+      // ---- tables ----
+      check(
+        "data table becomes a markdown table",
+        md("<table><tr><th>Item</th><th>Cost</th></tr><tr><td>Seat</td><td>$10</td></tr></table>"),
+        (a) => a.includes("| Item | Cost |") && a.includes("| --- | --- |") && a.includes("| Seat | $10 |")
+      );
+      check(
+        "single-column layout table is not a table",
+        md("<table><tr><td>Just wrapper text</td></tr></table>"),
+        "Just wrapper text"
+      );
+      check(
+        "pipes inside cells are escaped",
+        md("<table><tr><td>a|b</td><td>c</td></tr><tr><td>d</td><td>e</td></tr></table>"),
+        (a) => a.includes("a\\|b")
+      );
+
+      // ---- lists ----
+      check(
+        "unordered list keeps bullets",
+        md("<ul><li>one</li><li>two</li></ul>"),
+        (a) => a.includes("- one") && a.includes("- two")
+      );
+      check(
+        "ordered list is numbered",
+        md("<ol><li>first</li><li>second</li></ol>"),
+        (a) => a.includes("1. first") && a.includes("2. second")
+      );
+      check(
+        "nested list is indented",
+        md("<ul><li>outer<ul><li>inner</li></ul></li></ul>"),
+        (a) => /\n\s{2,}- inner/.test(a)
+      );
+
+      // ---- inline formatting ----
+      check("bold", md("<b>hi</b>"), "**hi**");
+      check("italic", md("<i>hi</i>"), "*hi*");
+      check("pre becomes a fence", md("<pre>a\nb</pre>"), (a) => a.startsWith("```") && a.includes("a\nb"));
+      check("br becomes a newline", md("a<br>b"), "a\nb");
+      // The closing tag is split so it cannot terminate this inline script.
+      check("script content dropped", md("<div>keep<script>var x=1<\/script></div>"), "keep");
+
+      // ---- quote stripping (DOM half) ----
+      function stripped(html) {
+        const d = frag(html);
+        CT.clean.stripQuoteNodes(d);
+        return CT.richtext.toMarkdown(d);
+      }
+      check(
+        "gmail_quote block removed",
+        stripped('<div>Reply text<blockquote class="gmail_quote">old stuff</blockquote></div>'),
+        "Reply text"
+      );
+      check(
+        "outlook tail and following siblings removed",
+        stripped('<div>Reply text</div><div id="appendonsend"></div><div>quoted history</div>'),
+        "Reply text"
+      );
+      check(
+        "non-quote blockquote is kept as a quote",
+        stripped("<div>See:<blockquote>cited line</blockquote></div>"),
+        (a) => a.includes("> cited line")
+      );
+
+      // ---- end-to-end shape ----
+      check(
+        "a realistic body survives intact",
+        stripped(
+          '<div>Hi team,<br><br>Numbers below.<table><tr><th>Q</th><th>Rev</th></tr>' +
+            '<tr><td>Q3</td><td>$1.2M</td></tr></table>' +
+            'See <a href="https://ex.com/deck">the deck</a>.' +
+            '<blockquote class="gmail_quote">On Tue someone wrote: old</blockquote></div>'
+        ),
+        (a) =>
+          a.includes("Hi team,") &&
+          a.includes("| Q3 | $1.2M |") &&
+          a.includes("[the deck](https://ex.com/deck)") &&
+          !a.includes("old")
+      );
+
+      const failed = results.filter((r) => !r.ok);
+      const out = document.getElementById("out");
+      out.textContent =
+        (failed.length ? "FAIL" : "PASS") + " " + (results.length - failed.length) + "/" + results.length;
+      for (const f of failed) {
+        const li = document.createElement("div");
+        li.className = "failure";
+        li.textContent = "FAILED: " + f.name + " -> " + JSON.stringify(f.actual);
+        out.appendChild(li);
+      }
+    </script>
+  </body>
+</html>

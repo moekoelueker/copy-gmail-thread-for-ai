@@ -1,0 +1,130 @@
+:root {
+  --bg: #ffffff;
+  --fg: #1f2024;
+  --muted: #6b7280;
+  --line: #e5e7eb;
+  --surface: #f5f6f8;
+  /* Coral accent, matching open-glass-ui's `coral` preset. The light and dark
+     values differ so contrast holds against either background rather than
+     reusing one mid-tone that is mediocre on both. */
+  --accent: #c94735;
+  --accent-fg: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1b1c20;
+    --fg: #e9eaee;
+    --muted: #9ca3af;
+    --line: #33353b;
+    --surface: #26282e;
+    --accent: #ff8a76;
+    --accent-fg: #2a0f08;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  width: 288px;
+  margin: 0;
+  padding: 14px;
+  background: var(--bg);
+  color: var(--fg);
+  font: 13px/1.5 "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 12px;
+}
+
+.head h1 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.action {
+  display: block;
+  width: 100%;
+  padding: 9px 12px;
+  margin-bottom: 7px;
+  font: inherit;
+  font-weight: 500;
+  text-align: left;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: filter 0.12s ease;
+}
+
+.action:hover:not(:disabled) { filter: brightness(0.96); }
+.action:disabled { opacity: 0.55; cursor: default; }
+
+.action:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.primary {
+  color: var(--accent-fg);
+  background: var(--accent);
+  border-color: transparent;
+}
+
+.explain,
+.hint {
+  margin: 0 0 10px;
+  color: var(--muted);
+}
+
+.hint:empty { display: none; }
+
+.foot {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.shortcuts {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 3px 10px;
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.shortcuts dt { margin: 0; }
+
+.shortcuts dd {
+  margin: 0;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  color: var(--fg);
+}
+
+.link {
+  padding: 0;
+  font: inherit;
+  font-size: 12px;
+  color: var(--accent);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .action { transition: none; }
+}

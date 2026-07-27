@@ -1,0 +1,64 @@
+{
+  "manifest_version": 3,
+  "name": "Copy Gmail Thread for AI",
+  "version": "2.0.0",
+  "description": "Copy a whole Gmail thread — every message, links, tables, attachments — as clean LLM-ready text. One shortcut, entirely local.",
+  "permissions": [
+    "downloads",
+    "clipboardWrite"
+  ],
+  "host_permissions": [
+    "https://mail.google.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Copy Gmail Thread for AI",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "commands": {
+    "copy-thread": {
+      "suggested_key": {
+        "default": "Alt+C"
+      },
+      "description": "Copy the open Gmail thread"
+    },
+    "save-thread": {
+      "suggested_key": {
+        "default": "Alt+Shift+C"
+      },
+      "description": "Copy the thread and save its attachments"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://mail.google.com/*"
+      ],
+      "js": [
+        "lib/text.js",
+        "lib/richtext.js",
+        "lib/clean.js",
+        "lib/format.js",
+        "lib/attachments.js",
+        "adapters/gmail.js",
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
