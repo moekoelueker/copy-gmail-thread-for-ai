@@ -109,6 +109,34 @@ test("omits empty recipient tags", () => {
   assert.ok(!out.includes("<cc>"), "emitted an empty <cc>");
 });
 
+test("metadata elements never emit a raw angle bracket", () => {
+  // Regression: recipients arrived as "Name <addr>" and went out unescaped, so
+  // "<moelueker@gmail.com>" sat inside the document as an opening tag.
+  const out = F.build(
+    thread({
+      subject: "Re: <urgent> review",
+      messages: [
+        msg({
+          to: ["Moe Lueker <moelueker@gmail.com>"],
+          cc: ["Legal <legal@x.com>"],
+          from: { name: "Jane <boss>", email: "jane@acme.com" },
+        }),
+      ],
+    })
+  );
+  for (const tag of ["subject", "to", "cc", "participants"]) {
+    const line = out.split("\n").find((l) => l.startsWith(`<${tag}>`));
+    if (!line) continue;
+    const inner = line.replace(new RegExp(`^<${tag}>|</${tag}>$`, "g"), "");
+    assert.ok(!inner.includes("<") && !inner.includes(">"), `${tag}: ${inner}`);
+  }
+});
+
+test("bodies keep angle brackets so code survives", () => {
+  const out = F.build(thread({ messages: [msg({ body: "use <div> and x < y" })] }));
+  assert.ok(out.includes("<div>"), "body markup was over-escaped");
+});
+
 test("includes recipients when present", () => {
   const out = F.build(thread({ messages: [msg({ to: ["a@x.com", "b@x.com"], cc: ["c@x.com"] })] }));
   assert.ok(out.includes("<to>a@x.com, b@x.com</to>"));

@@ -185,7 +185,7 @@ Stated plainly, because you should know these before trusting it:
 No dependencies, no build. Requires Node 18+ only to run the tests.
 
 ```bash
-node --test "test/*.test.js"     # 53 tests: parsing, cleaning, formatting, sanitising
+node --test "test/*.test.js"     # 57 tests: parsing, cleaning, formatting, sanitising
 open test/browser/index.html     # 37 DOM tests: the HTML→markdown converter
 ```
 

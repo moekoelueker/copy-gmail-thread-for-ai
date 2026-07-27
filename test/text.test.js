@@ -92,6 +92,24 @@ test("subjectsMatch does not block when a subject is unavailable", () => {
   assert.ok(T.subjectsMatch("Q3 renewal", ""));
 });
 
+test("normalizeAddress removes angle brackets that would read as markup", () => {
+  assert.strictEqual(
+    T.normalizeAddress("Moe Lueker <moelueker@gmail.com>"),
+    "Moe Lueker (moelueker@gmail.com)"
+  );
+  assert.strictEqual(T.normalizeAddress("<a@b.com>"), "a@b.com");
+  assert.strictEqual(T.normalizeAddress("a@b.com"), "a@b.com");
+  assert.strictEqual(T.normalizeAddress('"Jennifer" <j@x.com>'), "Jennifer (j@x.com)");
+  assert.strictEqual(T.normalizeAddress("moelueker <moelueker@gmail.com>"), "moelueker (moelueker@gmail.com)");
+});
+
+test("no normalized address can contain a raw angle bracket", () => {
+  for (const s of ["A <a@b.com>", "<x@y.com>", "plain@z.com", ""]) {
+    const out = T.normalizeAddress(s);
+    assert.ok(!out.includes("<") && !out.includes(">"), out);
+  }
+});
+
 test("unwrapImageProxy recovers the real image URL", () => {
   const proxied =
     "https://ci3.googleusercontent.com/meips/ADKq_Nav123=s0-d-e1-ft#https://static.xx.fbcdn.net/rsrc/x.png";

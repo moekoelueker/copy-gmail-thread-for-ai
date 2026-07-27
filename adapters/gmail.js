@@ -127,7 +127,7 @@
   function splitAddresses(s) {
     return String(s || "")
       .split(/[,;]/)
-      .map((x) => x.trim())
+      .map((x) => T.normalizeAddress(x.trim()))
       .filter(Boolean);
   }
 
@@ -207,8 +207,15 @@
       // how three PDFs disappeared from this thread once already.
       if (!name) continue;
 
-      const link = row.querySelector('a[href*="view=att"], a[href*="&disp="]');
-      const sizeMatch = (row.textContent || "").match(SIZE_RE);
+      const link =
+        row.querySelector('a[href*="view=att"], a[href*="&disp="]') ||
+        (table && table.querySelector('a[href*="view=att"], a[href*="&disp="]'));
+
+      // Look for the size in the row first, then the whole table. When the
+      // filename lives in a different row than the icon, so does the size.
+      const sizeMatch =
+        (row.textContent || "").match(SIZE_RE) ||
+        ((table && table.textContent) || "").match(SIZE_RE);
 
       found.push({
         name,
