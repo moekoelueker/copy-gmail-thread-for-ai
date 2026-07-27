@@ -15,20 +15,32 @@
     NOT_LOGGED_IN: "NOT_LOGGED_IN",
     FETCH_FAILED: "FETCH_FAILED",
     PARSE_EMPTY: "PARSE_EMPTY",
+    WRONG_THREAD: "WRONG_THREAD",
   };
 
   // ---------- thread identity ----------
 
   function subjectEl() {
-    return document.querySelector("h2.hP") || document.querySelector("[data-legacy-thread-id]");
+    return document.querySelector("h2.hP");
   }
 
+  // Must be scoped to the OPEN thread's subject heading. Gmail puts
+  // data-legacy-thread-id on inbox list rows as well, so an unscoped
+  // querySelector returns whichever row happens to come first in the DOM — a
+  // different conversation entirely — and the copy silently succeeds with the
+  // wrong email in it. Never widen this selector.
   function threadId() {
-    const el = document.querySelector("[data-legacy-thread-id]");
-    if (el) return el.getAttribute("data-legacy-thread-id");
-    // Gmail's URL hash carries the thread id when the DOM attribute is absent.
-    const m = location.hash.match(/\/([0-9a-f]{12,})$/i);
-    return m ? m[1] : null;
+    const h = subjectEl();
+    if (!h) return null;
+
+    const direct = h.getAttribute("data-legacy-thread-id");
+    if (direct) return direct;
+
+    // Fallback stays inside the opened conversation. Searching the document
+    // would reintroduce the list-row bug.
+    const scope = h.closest("[role='main']");
+    const el = scope ? scope.querySelector("[data-legacy-thread-id]") : null;
+    return el ? el.getAttribute("data-legacy-thread-id") : null;
   }
 
   function accountIndex() {
@@ -146,6 +158,19 @@
     const doc = new DOMParser().parseFromString(html, "text/html");
     const tables = doc.querySelectorAll("table.message");
     if (!tables.length) return null;
+
+    // Verify the fetched conversation is the one on screen. If a thread id is
+    // ever resolved incorrectly, the copy would otherwise succeed silently with
+    // somebody else's email in it — which is far worse than failing.
+    const printSubject = (doc.title || "").replace(/^Gmail\s*-\s*/i, "").trim();
+    const openSubject = (subjectEl()?.innerText || "").trim();
+    if (!T.subjectsMatch(printSubject, openSubject)) {
+      console.warn(
+        "[copy-gmail-thread] thread mismatch — open:", JSON.stringify(openSubject),
+        "fetched:", JSON.stringify(printSubject)
+      );
+      return { mismatch: true };
+    }
 
     const messages = [];
     let anyTrimmed = false;
@@ -267,6 +292,9 @@
 
     if (html) {
       const thread = parsePrintView(html, id);
+      // A mismatch is never recoverable by falling back — refuse loudly rather
+      // than handing over the wrong conversation.
+      if (thread && thread.mismatch) return { ok: false, error: ERR.WRONG_THREAD };
       if (thread) return { ok: true, thread };
       console.warn("[copy-gmail-thread] print view returned no parseable messages");
     }

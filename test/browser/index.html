@@ -52,7 +52,30 @@
       );
       check("remote image kept", md('<img alt="x" src="https://ex.com/i.png">'), "![x](https://ex.com/i.png)");
 
+      // ---- image noise (from a real Instagram digest capture) ----
+      check("tracking pixel dropped", md('<img width="1" height="1" src="https://x.com/p.gif">'), "");
+      check(
+        "facebook open-log pixel dropped",
+        md('<img src="https://ci3.googleusercontent.com/meips/AA=s0#https://www.facebook.com/email_open_log_pic.php?mid=1">'),
+        ""
+      );
+      check(
+        "unwrappable gmail proxy keeps the real url",
+        md('<img alt="logo" src="https://ci3.googleusercontent.com/meips/AA=s0-d-e1-ft#https://static.xx.fbcdn.net/a.png">'),
+        "![logo](https://static.xx.fbcdn.net/a.png)"
+      );
+      check(
+        "bare gmail proxy is described, not linked",
+        md('<img src="https://ci3.googleusercontent.com/meips/AAAA=s0-d-e1-ft">'),
+        "[image]"
+      );
+
       // ---- tables ----
+      check(
+        "spacer table of empty cells produces nothing",
+        md("<table><tr><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td></tr></table>"),
+        ""
+      );
       check(
         "data table becomes a markdown table",
         md("<table><tr><th>Item</th><th>Cost</th></tr><tr><td>Seat</td><td>$10</td></tr></table>"),

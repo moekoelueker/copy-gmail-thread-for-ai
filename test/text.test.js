@@ -68,6 +68,37 @@ test("unwrapRedirect recovers the real destination", () => {
   assert.strictEqual(T.unwrapRedirect("nonsense"), "nonsense");
 });
 
+test("subjectsMatch catches a fetched thread that isn't the open one", () => {
+  // Regression: an unscoped [data-legacy-thread-id] lookup matched an inbox list
+  // row, so the extension fetched an unrelated conversation and reported success.
+  assert.strictEqual(
+    T.subjectsMatch(
+      "linda_schuh_, getrippit and others posted something new",
+      "Subject: Paid Collaboration Opportunity with MiniMax"
+    ),
+    false
+  );
+});
+
+test("subjectsMatch tolerates reply and forward prefixes", () => {
+  assert.ok(T.subjectsMatch("Re: Q3 renewal", "Q3 renewal"));
+  assert.ok(T.subjectsMatch("Fwd: Re: Q3 renewal", "Q3 renewal"));
+  assert.ok(T.subjectsMatch("AW: Q3 renewal", "Re: Q3 renewal"));
+  assert.ok(T.subjectsMatch("Gmail - Q3 renewal terms", "Q3 renewal terms"));
+});
+
+test("subjectsMatch does not block when a subject is unavailable", () => {
+  assert.ok(T.subjectsMatch("", "Q3 renewal"));
+  assert.ok(T.subjectsMatch("Q3 renewal", ""));
+});
+
+test("unwrapImageProxy recovers the real image URL", () => {
+  const proxied =
+    "https://ci3.googleusercontent.com/meips/ADKq_Nav123=s0-d-e1-ft#https://static.xx.fbcdn.net/rsrc/x.png";
+  assert.strictEqual(T.unwrapImageProxy(proxied), "https://static.xx.fbcdn.net/rsrc/x.png");
+  assert.strictEqual(T.unwrapImageProxy("https://example.com/a.png"), "https://example.com/a.png");
+});
+
 test("isSafeUrl rejects script and data URLs", () => {
   assert.ok(T.isSafeUrl("https://example.com"));
   assert.ok(T.isSafeUrl("mailto:a@b.com"));

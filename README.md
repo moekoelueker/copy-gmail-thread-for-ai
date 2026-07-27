@@ -72,7 +72,7 @@ No build step, no dependencies, no account.
 4. Click **Load unpacked** and select the folder
 
 Open a Gmail thread and press **Option+C** (**Alt+C** on Windows and Linux), or
-click **Copy for LLM** next to the subject line.
+click **Copy for AI** next to the subject line.
 
 ## Shortcuts
 
@@ -154,6 +154,11 @@ Stated plainly, because you should know these before trusting it:
   the quote-stripper detects real prose inside a quoted block it keeps the
   whole thing. Keeping noise beats deleting someone's reply.
 - **Scanned PDFs and images are not read.** No OCR. They're delivered as files.
+- **Images are described rather than linked when Gmail proxies them.** Gmail
+  rewrites remote images through a session-gated `googleusercontent` URL that
+  nothing downstream can fetch and that runs to hundreds of characters. Where
+  the real address can be recovered it is kept; otherwise you get `[image: alt]`
+  rather than a long dead link. Tracking pixels are dropped outright.
 - **It depends on Gmail's internals** and will eventually break when Google
   changes them. It fails loudly rather than silently.
 
@@ -162,8 +167,8 @@ Stated plainly, because you should know these before trusting it:
 No dependencies, no build. Requires Node 18+ only to run the tests.
 
 ```bash
-node --test "test/*.test.js"     # 39 tests: parsing, cleaning, formatting, sanitising
-open test/browser/index.html     # 21 DOM tests: the HTML→markdown converter
+node --test "test/*.test.js"     # 44 tests: parsing, cleaning, formatting, sanitising
+open test/browser/index.html     # 26 DOM tests: the HTML→markdown converter
 ```
 
 The browser tests exist separately because Node has no DOM, and adding one

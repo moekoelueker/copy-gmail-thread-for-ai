@@ -16,6 +16,13 @@ or the popup.
 
 ## Core
 
+- [ ] **The pasted `<subject>` matches the thread you actually had open.** Check
+      this first, every time. A wrong-thread bug shipped once already: an
+      unscoped `[data-legacy-thread-id]` lookup matched an inbox list row, so the
+      extension fetched an unrelated conversation and reported success. There is
+      now a subject-match guard, but this is the check that catches its cousins.
+- [ ] Open a thread from the middle of a long inbox, not the top one — that is
+      the case where a list-row mix-up would be visible.
 - [ ] `Alt+C` copies. Toast reads `✓ Copied N messages`, and N matches the real
       thread length including collapsed messages.
 - [ ] Paste somewhere. Output starts `<email_thread>` and ends

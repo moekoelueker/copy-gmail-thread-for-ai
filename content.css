@@ -1,38 +1,62 @@
-/* Injected into Gmail. Kept deliberately close to Gmail's own chrome so the
-   button reads as native, and theme-aware because Gmail's dark theme is widely
-   used and v1 hardcoded light-mode colours. */
+/* Injected into Gmail.
+   Kept close to Gmail's own chrome so the button reads as native.
+
+   Theme handling deliberately avoids prefers-color-scheme: that reports the
+   OS theme, while Gmail's dark theme is a Gmail setting. Someone running Gmail
+   dark on a light OS would get an unreadable button. Instead the button derives
+   everything from currentColor, which inherits Gmail's actual foreground colour,
+   so it adapts to any theme — including custom ones — with no detection. */
 
 .ctl-btn {
+  /* Same copy glyph as the extension icon, inlined so it needs no
+     web_accessible_resources entry. Painted with a mask rather than as an
+     image so it also takes currentColor. */
+  --ctl-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M15 9V5.5A2.5 2.5 0 0 0 12.5 3h-7A2.5 2.5 0 0 0 3 5.5v7A2.5 2.5 0 0 0 5.5 15H9'/%3E%3Crect x='9' y='9' width='12' height='12' rx='2.5'/%3E%3C/svg%3E");
+
   font-family: "Google Sans", Roboto, Arial, sans-serif;
   font-size: 12px;
   font-weight: 500;
   line-height: 1.6;
-  color: #3c4043;
-  background: #f1f3f4;
-  border: 1px solid #dadce0;
+  color: inherit;
+  background: rgba(128, 128, 128, 0.14);
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  border: 1px solid rgba(128, 128, 128, 0.38);
+  border-color: color-mix(in srgb, currentColor 30%, transparent);
   border-radius: 14px;
-  padding: 4px 12px;
+  padding: 4px 12px 4px 10px;
   margin-left: 12px;
   cursor: pointer;
   vertical-align: middle;
   white-space: nowrap;
-  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.ctl-btn::before {
+  content: "";
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 6px;
+  vertical-align: -1.5px;
+  background-color: currentColor;
+  -webkit-mask: var(--ctl-glyph) center / contain no-repeat;
+  mask: var(--ctl-glyph) center / contain no-repeat;
 }
 
 .ctl-btn:hover:not(:disabled) {
-  background: #e8eaed;
-  border-color: #c6cacd;
-  color: #1f1f1f;
+  background: rgba(128, 128, 128, 0.24);
+  background: color-mix(in srgb, currentColor 20%, transparent);
+  border-color: color-mix(in srgb, currentColor 45%, transparent);
 }
 
 .ctl-btn:focus-visible {
-  outline: 2px solid #c94735;
+  outline: 2px solid currentColor;
   outline-offset: 2px;
 }
 
 .ctl-btn:disabled {
   cursor: default;
-  opacity: 0.6;
+  opacity: 0.55;
 }
 
 .ctl-loading {
@@ -44,6 +68,8 @@
   50% { opacity: 1; }
 }
 
+/* The toast is an overlay, so it stays dark in every theme, matching Gmail's
+   own snackbars rather than trying to blend with the page. */
 .ctl-toast {
   position: fixed;
   bottom: 32px;
@@ -58,7 +84,7 @@
   line-height: 1.4;
   padding: 10px 20px;
   border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
   opacity: 1;
   transition: opacity 0.4s ease;
 }
@@ -66,34 +92,12 @@
 /* Warnings must not look like successes. A partial capture reported in the same
    styling as a clean one is how people end up trusting half a thread. */
 .ctl-toast-warn {
-  background: #7f2f16;
-  box-shadow: 0 4px 16px rgba(127, 47, 22, 0.4);
+  background: #8c2f12;
+  box-shadow: 0 4px 16px rgba(140, 47, 18, 0.45);
 }
 
 .ctl-toast-out {
   opacity: 0;
-}
-
-@media (prefers-color-scheme: dark) {
-  .ctl-btn {
-    color: #e8eaed;
-    background: #303134;
-    border-color: #5f6368;
-  }
-  .ctl-btn:hover:not(:disabled) {
-    background: #3c4043;
-    border-color: #7a7f85;
-    color: #fff;
-  }
-  .ctl-toast {
-    background: #e8eaed;
-    color: #202124;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
-  }
-  .ctl-toast-warn {
-    background: #f3b49a;
-    color: #3c1508;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

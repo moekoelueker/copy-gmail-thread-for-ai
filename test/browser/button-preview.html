@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Button preview</title>
+    <link rel="stylesheet" href="../../content.css" />
+    <style>
+      /* Approximates Gmail's subject row in both themes so the injected button
+         can be eyeballed without loading the extension. */
+      body { font: 14px system-ui; margin: 0; }
+      .pane { padding: 24px; }
+      .light { background: #fff; color: #202124; }
+      .dark { background: #1b1c1f; color: #e8eaed; color-scheme: dark; }
+      h2 { font-size: 20px; font-weight: 400; margin: 0; display: inline; }
+    </style>
+  </head>
+  <body>
+    <div class="pane light">
+      <h2>Q3 renewal terms</h2>
+      <button class="ctl-btn" type="button">Copy for AI</button>
+      <button class="ctl-btn" type="button" disabled>Copy for AI</button>
+    </div>
+    <div class="pane dark">
+      <h2>Q3 renewal terms</h2>
+      <button class="ctl-btn" type="button">Copy for AI</button>
+    </div>
+    <div class="pane light">
+      <div class="ctl-toast" style="position: static; transform: none; display: inline-block">
+        ✓ Copied 24 messages · quoted text trimmed
+      </div>
+      <div class="ctl-toast ctl-toast-warn" style="position: static; transform: none; display: inline-block">
+        ⚠ Copied 3 messages — collapsed messages may be missing
+      </div>
+    </div>
+  </body>
+</html>

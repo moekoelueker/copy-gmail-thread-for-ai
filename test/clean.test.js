@@ -32,6 +32,20 @@ test("cuts an Outlook original-message block", () => {
   assert.strictEqual(C.trimQuotedText(body).text, "Approved.");
 });
 
+test("cuts a Chinese-client quoted header block", () => {
+  const body = [
+    "ok! lets do it with 3500usd!",
+    "",
+    "发件人: Moe Lueker <moelueker@gmail.com>",
+    "到: \"Jennifer\"<jennifer@globeinflu.com>",
+    "日期: 周三, 2026-06-17 14:20:36",
+    "主题: Re: Paid Collaboration Opportunity",
+  ].join("\n");
+  const { text, trimmed } = C.trimQuotedText(body);
+  assert.strictEqual(text, "ok! lets do it with 3500usd!");
+  assert.strictEqual(trimmed, true);
+});
+
 test("keeps forwarded messages intact", () => {
   const body = [
     "FYI, see below.",

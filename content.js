@@ -11,6 +11,7 @@
     NOT_LOGGED_IN: "Gmail session expired — reload and sign in.",
     FETCH_FAILED: "Gmail wouldn't return the thread — reload and retry.",
     PARSE_EMPTY: "Couldn't read any messages from this thread.",
+    WRONG_THREAD: "Gmail returned a different conversation — nothing copied. Reload and retry.",
     CLIPBOARD_BLOCKED: "Clipboard blocked — click the page, then try again.",
   };
 
@@ -175,7 +176,7 @@
     const b = document.createElement("button");
     b.type = "button";
     b.className = "ctl-btn";
-    b.textContent = "Copy for LLM";
+    b.textContent = "Copy for AI";
     b.setAttribute("aria-label", "Copy this email thread as LLM-ready text");
     b.title = "Copy the full thread (see chrome://extensions/shortcuts for the keyboard shortcut)";
     b.addEventListener("click", async (e) => {
