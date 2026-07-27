@@ -13,8 +13,12 @@
 
     <main id="onGmail" hidden>
       <button id="copy" class="action primary">Copy thread</button>
-      <button id="save" class="action">Copy + save attachments</button>
-      <p id="hint" class="hint"></p>
+      <button id="save" class="action">Copy + save files</button>
+      <p class="explain compact">
+        Uses this signed-in Gmail tab. No Google sign-in or extension account.
+        Saved files go to Chrome’s download directory.
+      </p>
+      <p id="hint" class="hint" role="status" aria-live="polite"></p>
     </main>
 
     <main id="offGmail" hidden>

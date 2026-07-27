@@ -1,487 +1,330 @@
-# Copy Gmail Thread for AI — v2 design
+# Design: version 2.1
 
-**Date:** 2026-07-26
-**Status:** approved for planning
-**Owner:** Moe Lueker / Zena Labs LLC
+This document describes the code that currently ships. The earlier v2 proposal
+mixed planned and implemented behavior; that made it unsuitable as a security
+reference.
 
----
+## Goal
 
-## 1. Problem
+Given the Gmail conversation already open in Chrome, produce a compact document
+from which a human or LLM can answer:
 
-Getting an email conversation out of Gmail and into an LLM is manual and lossy. You
-scroll, expand collapsed messages one at a time, drag-select across signatures and
-legal disclaimers, and paste something that has lost its links, its tables, and half
-its context. Attachments cannot come along at all.
+> Who said what, when, to whom, and with which attachment?
 
-The tool should do this in one keystroke, completely, faithfully, and without any
-data leaving the machine.
+The extension must use the browser’s existing Gmail session. It must not add a
+Google OAuth flow, Gmail API credential, remote service, or extension account.
 
-## 2. Goals
+## Non-goals
 
-1. **Complete.** Every message in the thread, including ones Gmail collapsed.
-2. **Faithful.** Preserve links, tables, lists, code, sender, recipients, dates.
-3. **High signal.** No quoted reply chains duplicated N times. No signatures.
-4. **Attachments delivered.** Text-like ones inlined; everything else saved to disk
-   and referenced by path.
-5. **One action.** A single remappable shortcut, or one button.
-6. **Local only.** Zero network egress. No server, no analytics, no storage, no accounts.
-7. **Honest.** Never report success when the result is partial. Every failure mode
-   produces a specific, actionable message.
-8. **Auditable.** Zero runtime dependencies. No build step. Readable in one sitting.
-9. **Installable by anyone.** Four steps, no configuration.
+- sending, modifying, labeling, or deleting mail;
+- discovering mail that is not already open;
+- identifying the mailbox owner;
+- reconstructing branching `In-Reply-To` relationships;
+- parsing PDF, Office, image, audio, or video contents;
+- OCR;
+- claiming completeness when Gmail markup was not understood.
 
-## 3. Non-goals (explicit YAGNI)
+## Trust model
 
-These are deliberately excluded. Each has a reason, so we do not relitigate them.
+Three inputs are untrusted:
 
-| Excluded | Reason |
-|---|---|
-| Gmail API / OAuth | Needs a Cloud project, consent screen, and Google verification for Gmail scopes. Destroys both the 30-second install and the local-only story. |
-| Bundling pdf.js / docx parsers | ~1–2 MB of vendored minified code inside an extension holding a Gmail session. Destroys auditability, which is the project's main security claim. Both target consumers (Claude Code, claude.ai) already read PDFs natively. |
-| Raw RFC822 (`view=om`) extraction | Better header fidelity, but costs one request per message plus a MIME parser handling base64, quoted-printable, multipart boundaries and charsets. Not worth ~200 lines that must be exactly right. |
-| Other mail providers (Outlook, Proton…) | Out of scope for v2. The adapter seam exists so this is one new file later, not a refactor. |
-| Options page / `chrome.storage` | The only setting people want to change is the shortcut, and `chrome://extensions/shortcuts` already provides it. Adds a permission and persistent state for no gain. |
-| Drag-out file affordance | Real technique (`dataTransfer.items.add(new File(...))`), but mid-drag tab switching is finicky. The Save action plus a drag from Finder covers the same need with less code. |
-| Chrome Web Store submission | Deferred to a separate decision. The GitHub release is the v2 distribution channel. |
-| i18n | English only. |
+1. email-controlled HTML, text, links, filenames, and metadata;
+2. undocumented Gmail markup, which can change without notice;
+3. messages crossing from the content script to the privileged service worker.
 
-## 4. Architecture
+Gmail itself and Chrome’s installed extension runtime are trusted. The
+repository contains all runtime code. Development dependencies do not ship.
 
-### 4.1 Substrate decision
+The most important failure is a plausible-looking wrong or partial thread.
+Identity therefore fails closed, while content cleanup is conservative: extra
+noise is preferable to deleted mail.
 
-Keep Gmail's print view (`?ik=<ik>&view=pt&search=all&th=<threadId>`) as the primary
-extraction path. One same-origin request returns every message with full bodies,
-including collapsed ones, with no UI manipulation. Alternatives were considered and
-rejected in §3.
+## Data flow
 
-### 4.2 Module layout
+```text
+user action
+    |
+    v
+content.js
+    |
+    +-- adapters/gmail.js
+    |      snapshot open subject + thread id + account
+    |      request same-origin Gmail print view
+    |
+    +-- adapters/gmail-parse.js
+    |      validate subject
+    |      parse messages, headers, bodies, attachments
+    |
+    +-- lib/attachments.js
+    |      merge -> validate -> de-duplicate -> inline/download
+    |
+    +-- lib/format.js
+           strict XML + Markdown-in-CDATA -> clipboard
 
-```
-adapters/gmail.js     detect thread, acquire ik, fetch print view, enumerate attachments
-lib/richtext.js       DOM subtree -> markdown (links, tables, lists, code, images)
-lib/clean.js          strip quoted chains and signatures, with a safety valve
-lib/format.js         thread object -> tagged output, with escaping
-lib/attachments.js    classify, inline text, sanitize names, request downloads
-content.js            orchestration, button, toast, keyboard entry
-background.js         commands, downloads, ik fallback (only if §4.4 requires it)
-popup.html / popup.js discoverability surface and off-Gmail explainer
-test/                 node --test, redacted fixtures, zero dependencies
+save only:
+content.js -> background.js -> repeat URL/path validation -> chrome.downloads
 ```
 
-`lib/*` are pure functions: input string or DOM node, output data. No network, no
-`chrome.*`, no globals beyond their own namespace. This is what makes them testable
-in Node without a browser or a dependency.
+The browser session is the only authentication mechanism. Requests use the
+signed-in Gmail tab and stay on `https://mail.google.com`.
 
-### 4.3 Adapter interface
+## Module boundaries
 
-`adapters/gmail.js` implements exactly three methods. Ship Gmail only; the interface
-exists so a second provider is additive.
+The v2 adapter combined transport, parsing, identity, and live DOM discovery.
+That made individually correct modules easy to connect incorrectly—for example,
+print-view attachments were parsed but bypassed the attachment pipeline.
+
+Version 2.1 uses explicit boundaries:
+
+- `adapters/gmail.js` owns live-page identity, session-key discovery,
+  same-origin transport, and the explicitly partial visible-page fallback.
+- `adapters/gmail-parse.js` turns detached print-view HTML into a thread model.
+  It performs no network request and reads no live document state.
+- `lib/attachments.js` owns one canonical, thread-wide attachment list.
+  Attribution is a `messageN` field, not a second attachment collection.
+- `lib/security.js` is loaded by both the content script and service worker so
+  URL/path policy cannot drift across the privilege boundary.
+- `lib/format.js` consumes only the canonical thread model.
+
+Every transition carries an explicit context:
 
 ```js
 {
-  isThreadOpen()   -> boolean
-  getThread()      -> Promise<Thread | {error: ErrorCode}>
-  getAttachments() -> Promise<AttachmentMeta[]>
+  threadId: "…",
+  accountIndex: "0"
 }
 ```
 
-`Thread` shape:
+Attachment URLs cannot be normalized or downloaded without it.
+
+## Thread identity
+
+The adapter reads the subject heading `h2.hP`. It accepts a thread ID on that
+heading or in a narrow ancestor walk that stops before Gmail’s `role="main"`
+container. It never searches the whole main region, where inbox rows also carry
+thread IDs.
+
+The print-view title is compared with the open subject using Unicode NFKC,
+localized reply-prefix removal, whitespace/punctuation normalization, and exact
+equality. Missing subjects, substrings, and unrelated non-Latin subjects fail
+closed.
+
+If the subjects differ, no clipboard write occurs. The visible-page fallback is
+not used for an identity mismatch.
+
+## Capture and completeness
+
+The preferred source is Gmail’s print view because it normally includes
+collapsed messages. Every candidate `table.message` is counted. A candidate
+with an unknown layout is skipped, but the result becomes partial.
+
+Completeness has three independent booleans:
+
+```js
+completeness: {
+  messages: true,
+  headers: true,
+  attachments: true
+}
+```
+
+`complete` is derived from those values; callers cannot override it with a
+single optimistic flag.
+
+Examples:
+
+- skipped message table → all three false, because its headers and attachments
+  are also unknowable;
+- sender, date, or recipient label not parsed → `headers=false`;
+- icon-only attachment or live-only attachment → `attachments=false`;
+- visible-page fallback → all three false.
+
+Print-view output includes both the number of captured `<messages>` and the
+number of `<message_candidates>` Gmail exposed. A partial parser result
+therefore shows the size and position of a gap instead of silently renumbering
+later messages.
+
+Warnings have stable codes and human-readable messages. Both are copied into
+the output.
+
+## Header model
+
+Each message records:
 
 ```js
 {
-  subject: string,
-  url: string,
-  source: 'print-view' | 'dom-fallback',
-  complete: boolean,          // false when dom-fallback may have missed messages
-  quotedTrimmed: boolean,
-  messages: [{
-    n: number,
-    from: {name: string, email: string},
-    to: string[], cc: string[],
-    date: string|null,        // ISO 8601 UTC
-    dateRaw: string,          // always the original string
-    body: string,             // markdown
-    attachments: AttachmentMeta[]
-  }]
+  n,
+  from: { name, email },
+  to: [{ name, email }],
+  cc: [{ name, email }],
+  bcc: [{ name, email }],
+  date,       // parsed ISO instant or null
+  dateRaw,    // Gmail's displayed local value
+  body
 }
 ```
 
-### 4.4 Session key acquisition — implementation step one
+The address-list scanner respects quoted names, angle brackets, commas, and
+semicolons. It does not split `"Doe, Jane" <jane@example.com>` into two people.
+Recipient parsing is still dependent on Gmail’s labels and is therefore
+included in the completeness contract.
 
-Today the extension holds the `scripting` permission and injects into Gmail's MAIN
-world solely to read `window.GLOBALS[9]`. That is its most sensitive capability:
-running code inside Gmail's own JavaScript context.
+Both timestamps are kept. `dateRaw` preserves the human-visible local time;
+`date` is emitted only when the platform parser produces a plausible
+1990–2100 instant. No timestamp is fabricated.
 
-The value is very likely reachable from the isolated world with plain DOM access.
-Try, in order, and stop at the first that works:
+## Body conversion and cleanup
 
-1. Parse `ik=` out of an existing Gmail link `href` in the DOM.
-2. Regex `GLOBALS=[...]` out of inline `<script>` text via `document.scripts`.
-3. Test whether the print view responds correctly with `ik` omitted entirely.
-4. Only if 1–3 all fail: keep the MAIN-world injection as today.
+The rich-text converter preserves useful semantics:
 
-**If any of 1–3 succeeds, remove the `scripting` permission and the MAIN-world
-injection from the shipped extension.** This must be verified against a live Gmail
-session before the manifest is finalised. Record which rung worked in the README's
-permissions table.
+- links, with Google redirect wrappers removed;
+- data tables;
+- ordered and unordered lists;
+- bold, italic, inline code, and fenced code;
+- block quotations that are not recognized reply history.
 
-## 5. Output format
+Markdown link text and destinations are escaped. Fence length grows beyond
+backticks in the source.
 
-XML-style tags with markdown bodies. Rationale: email bodies routinely contain `#`,
-`---`, and code fences, so markdown headings are ambiguous as message boundaries.
-JSON would escape every newline into `\n` soup. YAML breaks on arbitrarily indented
-email text. Tagged structure gives unambiguous boundaries, stays readable, survives
-truncation, and is what Claude is tuned to parse.
+Remote images are represented as inert text (`[image: alt]`). Active Markdown
+images are not emitted because an LLM client could fetch a per-recipient
+tracking URL after paste. Tiny/open-log images and Gmail interface icons are
+dropped.
 
+Quote removal has a DOM pass and a text pass. Recognized reply containers and
+headers are removed. Substantial prose mixed with literal quote lines or beside
+a nested quote is retained and flagged. Signature removal stops at postscripts,
+questions, long tails, and any cut that would empty a message.
+
+## Attachment model
+
+There is one canonical array:
+
+```js
+{
+  name,
+  type,
+  size,
+  messageN, // null only when attribution cannot be verified
+  content,
+  path,
+  status
+}
 ```
-<email_thread>
-<meta>
-<subject>Q3 renewal terms</subject>
-<messages>6</messages>
-<source>print-view</source>
-<complete>true</complete>
-<url>https://mail.google.com/mail/u/0/#inbox/FMfcgz…</url>
-</meta>
-<message n="1" date="2026-07-07T16:03:00Z">
-<from name="Jane Doe" email="jane@acme.com"/>
-<to>bob@acme.com, you@example.com</to>
-<body>
-Body as markdown, with [links](https://example.com) and tables preserved.
-</body>
-</message>
+
+Print-view and live-page discoveries are merged by a verified Gmail URL, then
+normalized once. Duplicate filenames receive a globally unique target name,
+including collisions with names that already contain suffixes.
+
+An attachment capability is accepted only when all of these hold:
+
+- HTTPS;
+- exact origin `https://mail.google.com`;
+- exact `/mail/u/<active account>/` endpoint;
+- `view=att`;
+- exact active thread ID;
+- `attid` or `permmsgid`;
+- no credentials or URL fragment.
+
+The raw URL is not emitted.
+
+Text-like files are fetched with same-origin credentials, redirects disabled,
+bounded streaming, charset/BOM handling, 100 KB per-file and 300 KB aggregate
+limits. Save mode also starts a Chrome download for text files.
+
+The displayed Gmail size is used to skip a declared file over 25 MB. Gmail’s
+normal attachment limit is itself 25 MB, but the extension cannot enforce a
+server-side byte cap after handing a verified URL to `chrome.downloads`.
+
+## Privileged download boundary
+
+`background.js` accepts download messages only from this extension’s content
+script in a Gmail tab. It derives the account index from `sender.tab.url`,
+revalidates the attachment capability, and accepts only portable relative paths
+under:
+
+```text
+gmail-threads/<subject>/<filename>
+```
+
+Backslashes, absolute paths, drive letters, control characters, empty segments,
+and `.`/`..` segments are rejected. Chrome receives `conflictAction:
+"uniquify"`.
+
+The response says `download started`. It never equates an assigned download ID
+with completed disk I/O. Paths are described relative to Chrome’s configured
+download directory rather than hard-coding `~/Downloads`.
+
+## Output grammar
+
+The envelope is strict XML:
+
+```xml
+<email_thread format_version="3">
+  <meta>…</meta>
+  <attachments attribution="unknown">…</attachments>
+  <message n="1" from="…" email="…" date="…" local="…">
+    <to><recipient name="…" email="…"/></to>
+    <body format="markdown"><![CDATA[…]]></body>
+    <attachments>…</attachments>
+  </message>
 </email_thread>
 ```
 
-Rules:
-
-- `<source>` is `print-view` or `dom-fallback`, matching `Thread.source` in §4.3.
-- `<complete>` is `false` whenever the DOM fallback ran. The model reading the output
-  must be able to tell that messages may be missing — warning only in the toast is not
-  enough, since the toast is gone by the time the text is pasted.
-- Omit `<to>`, `<cc>`, and `<attachments>` entirely when empty. Do not emit empty tags.
-- `<from>` uses attributes because email addresses contain `<` and `>`, which would
-  otherwise break the structure.
-- **Attribute escaping:** `&` → `&amp;`, `"` → `&quot;`, `<` → `&lt;`.
-- **Body escaping:** escape *only* sequences that could be misread as one of our own
-  closing tags (`</body>`, `</message>`, `</email_thread>`, case-insensitive) by
-  replacing the `<` with `&lt;`. Do not escape all `<`, which would mangle emails
-  discussing HTML or containing code.
-- **Dates:** normalise to ISO 8601 UTC in `date`. If parsing fails, omit `date` and
-  emit `date_raw="<original string>"`. Never fabricate a date.
-- Messages are ordered oldest first, and `n` is assigned after ordering.
-
-## 6. Rich text extraction (`lib/richtext.js`)
-
-Replaces the current `textOf`, which discards links and flattens tables.
-
-| Element | Output |
-|---|---|
-| `<a href>` | `[text](url)`; bare url if text equals href |
-| Gmail redirect wrapper | Unwrap `google.com/url?q=<real>` to the real target |
-| `<a>` with `data:` or `javascript:` href | Render text only, drop the href |
-| `<img src="http(s)">` | `![alt](src)` |
-| `<img src="data:">` or `cid:` | `[inline image: alt or filename]` — never inline base64 |
-| `<table>` | Markdown table; `<th>` row as header, else synthesise a separator; newlines inside cells collapse to spaces |
-| `<ul>` / `<ol>` / `<li>` | `- ` / `1. `, indented by nesting depth |
-| `<pre>`, `<code>` | Fenced block / inline backticks |
-| `<b>`, `<strong>` / `<i>`, `<em>` | `**` / `*` |
-| `<blockquote>` not `.gmail_quote` | `> ` prefix |
-| `<br>` | newline |
-| Block elements | trailing newline |
-| `<hr>` | `---` |
-| `<style>`, `<script>`, `<head>` | dropped entirely |
-
-Three or more consecutive newlines collapse to two. Output is always produced with
-`textContent`-level primitives; `innerHTML` is never used anywhere in the codebase.
-
-## 7. Quote and signature stripping (`lib/clean.js`)
-
-The current code copies each message's full body including its quoted reply chain, so
-an n-message thread carries roughly O(n²) text. This is the single largest quality
-defect.
-
-**Remove:** `blockquote.gmail_quote`, `div.gmail_quote`, `.gmail_extra > blockquote`,
-`div.gmail_signature`, Outlook's `div#appendonsend` and its following siblings, and a
-trailing `On <date>, <name> wrote:` line when it introduces removed content.
-
-**Cut at:** a line consisting of exactly `--` or `-- ` (signature delimiter).
-
-**Never remove:** `---------- Forwarded message ---------` blocks. Forwarded content is
-real content, not quoted history.
-
-**Safety valve.** Inline replies written *inside* a quoted block are the known hard
-case. If stripping would remove more than 90% of the body's characters *and* leave
-fewer than 30 characters, discard the strip and keep the original body. Stripping must
-never turn a non-empty body into an empty one. Set `quotedTrimmed` on the thread when
-any trimming occurred so the UI can say so.
-
-## 8. Attachments (`lib/attachments.js`)
-
-**Discovery.** Parse attachment metadata from the print view HTML. Whether the print
-view exposes filenames and download URLs must be verified empirically against a real
-thread; if it does not, fall back to the live DOM and construct `view=att` URLs from
-the thread id and attachment id.
-
-**Inline (copy action).** Extension allowlist: `.txt .md .csv .tsv .json .log .xml
-.yml .yaml .ics`. Fetch same-origin, decode UTF-8, inline into the output. Cap at
-100 KB per file and 300 KB total; on exceeding, truncate and append an explicit
-`[truncated: N of M bytes]` marker.
-
-**Download (save action only).** Everything else goes to
-`gmail-threads/<subject-slug>/` via `chrome.downloads`, and is listed in the output
-with its path, type, and size. Files over 25 MB are skipped and noted.
-
-Downloads happen **only** on the explicit Save action, never on a plain copy —
-otherwise every keystroke litters the Downloads folder.
-
-**Filename sanitisation (security).** Attachment filenames are attacker-controlled;
-anyone can email a file named `../../.zshrc` or one containing control characters.
-`chrome.downloads` rejects `..`, but we do not rely on that. Sanitiser: strip path
-separators and control characters, strip leading dots, allow only
-`[A-Za-z0-9._ -]`, collapse repeated separators, truncate to 100 characters while
-preserving the extension, and de-duplicate collisions with ` (2)`. The same sanitiser
-produces the subject-derived folder name, falling back to the thread id when the
-subject sanitises to empty.
-
-## 9. Shortcuts and clipboard
-
-Remove the double-⌘C listener entirely. It hijacks the clipboard, depends on a 450 ms
-timing window, and cannot be remapped.
-
-Use the `commands` API:
-
-| Command | Default | Action |
-|---|---|---|
-| `copy-thread` | `Alt+C` (Option+C on macOS) | Copy thread to clipboard |
-| `save-thread` | `Alt+Shift+C` | Copy, plus download binary attachments |
-
-Chrome consumes these before the page sees them, so Option+C types no `ç` and normal
-copy is untouched. Users remap at `chrome://extensions/shortcuts` — this is why no
-options page is needed.
-
-**Clipboard write path.** Since Chrome 107 a command-triggered
-`navigator.clipboard.writeText()` can raise a clipboard permission dialog. Therefore:
-
-- Button click (has transient user activation) → `navigator.clipboard.writeText`.
-- Command-triggered → hidden `<textarea>` + `document.execCommand('copy')`, which the
-  `clipboardWrite` permission covers without a gesture.
-
-Verify empirically; if the async API proves clean from the command path, prefer it and
-delete the fallback.
-
-## 10. UI
-
-**Gmail button.** Keep placement next to the subject. Add: a
-`prefers-color-scheme: dark` variant (current CSS hardcodes `#fef3e2` / `#92400e` and
-will look broken in Gmail's dark theme, which is widely used), a `:focus-visible`
-ring, and an `aria-label`.
-
-**Toast.** `role="status"` and `aria-live="polite"` so it is announced. Text set with
-`textContent` only.
-
-**MutationObserver.** Currently fires `attachButton` on every Gmail DOM mutation.
-Debounce on a 250 ms trailing edge. Keep the existing context-death disconnect.
-
-**Popup** (`popup.html`, no new permissions). On Gmail: Copy button, Save button, the
-current shortcut, and a link to `chrome://extensions/shortcuts`. Off Gmail: "Open a
-Gmail thread to use this." This is the discoverability surface for users who will not
-read a README, and it is what makes the extension self-explanatory.
-
-## 11. Error handling
-
-Every `catch (_) {}` is replaced. All failures log `console.warn('[copy-gmail-thread]', …)`
-with detail and surface a specific toast.
-
-| Code | Toast |
-|---|---|
-| `NOT_ON_THREAD` | Open an email thread first. |
-| `NO_IK` | Couldn't read Gmail's session key — reload Gmail and retry. |
-| `NOT_LOGGED_IN` | Gmail session expired — reload and sign in. |
-| `FETCH_FAILED` | Gmail returned {status} — reload and retry. |
-| `PARSE_EMPTY` | Print view returned no messages — using visible messages instead. |
-| `FALLBACK_PARTIAL` | ⚠ Copied N visible messages — collapsed messages may be missing. |
-| `CLIPBOARD_BLOCKED` | Clipboard blocked — click the page and try again. |
-| `DOWNLOAD_FAILED` | Saved N of M attachments; see console for details. |
-| success | ✓ Copied N messages · M attachments · quoted text trimmed |
-
-**Login-page detection:** if `resp.url` contains `accounts.google.com` or
-`ServiceLogin`, raise `NOT_LOGGED_IN` rather than parsing a sign-in page as a thread.
-
-**Never report success when partial.** `FALLBACK_PARTIAL` is a distinct, visibly
-different message from success. This is the fix for the current silent-partial-copy
-behaviour, which is the most damaging existing defect because it looks like success.
-
-**Size guard.** Above 400 KB or 150 messages, copy anyway but state the size in the
-toast. No modal dialogs — they block the extension's own event loop.
-
-## 12. Edge cases
-
-Handled explicitly, each with a test or a documented behaviour:
-
-1. Inbox list view, not a thread → `NOT_ON_THREAD`.
-2. Multiple accounts (`/u/0`, `/u/1`, no `/u/` segment) → derive index, default `0`.
-3. Conversation view disabled in Gmail settings → single-message threads still work.
-4. Threads in Spam or Trash → `search=all` may not cover; fall back to the DOM path.
-5. Draft messages inside a thread → excluded, noted in output if present.
-6. **Attachment-only or image-only message with an empty body** → currently dropped
-   silently by `if (body)`. Must be retained with an explicit `[no text content]`
-   body so the message is not invisible.
-7. Very long threads → size guard.
-8. Inline base64 images → never inlined (§6).
-9. Non-Latin scripts, RTL text, emoji, zero-width characters → preserved verbatim.
-10. Calendar invites (`text/calendar`) → inlined as text via the `.ics` allowlist.
-11. Encrypted / S-MIME bodies → not decrypted; noted as unreadable.
-12. Gmail confidential mode → print view unavailable; expect fallback.
-13. Print view removed by Google → DOM fallback plus `FALLBACK_PARTIAL`.
-14. Session expired mid-use → `NOT_LOGGED_IN`.
-15. Offline → `FETCH_FAILED`.
-16. Extension reloaded while Gmail is open → existing context-death path removes UI.
-17. Malicious attachment filename → sanitiser (§8).
-18. Malicious HTML in a body → `innerHTML` is never used; invariant covered by a test.
-
-## 13. Security model
-
-| Permission | Why | Change |
-|---|---|---|
-| `host: mail.google.com` | Read the open thread | unchanged |
-| `scripting` | MAIN-world `ik` read | **removed if §4.4 rungs 1–3 succeed** |
-| `downloads` | Save attachments | **new** — writes only inside the Downloads folder |
-| `clipboardWrite` | Write from the command path | **new** |
-| `commands` | Remappable shortcuts | new manifest key, not a permission |
-
-Unchanged invariants: no `storage`, no `<all_urls>`, no host beyond
-`mail.google.com`, no analytics, no remote code, no `eval`, no `innerHTML`, no build
-step, zero runtime dependencies. Exactly one network request per copy, same-origin.
-
-Net effect: the extension gains the ability to write files into the Downloads folder
-and, if §4.4 succeeds, loses the ability to execute code in Gmail's own context. That
-is a favourable trade.
-
-## 14. Testing
-
-`node --test` with Node's built-in runner. Zero dependencies. A ~15-line `node:vm`
-loader evaluates the browser-global `lib/*` modules into a sandbox so they can be
-tested without a browser.
-
-Fixtures are **synthetic or hand-redacted**. Real email is never committed.
-
-| Fixture | Asserts |
-|---|---|
-| Single message | Baseline parse |
-| 8-message nested quoting | No duplication; output size is O(n) not O(n²) |
-| Inline reply inside a quote | Safety valve keeps the body |
-| Tables, lists, links, code | Markdown fidelity |
-| Gmail redirect-wrapped links | Unwrapped to the real target |
-| Attachment-only, empty body | Message retained, not dropped |
-| Body containing `</message>` | Escaped; structure intact |
-| RTL, emoji, non-Latin | Preserved byte-for-byte |
-| Filename `../../.zshrc` | Sanitised |
-| Sign-in page HTML | Detected as `NOT_LOGGED_IN`, not parsed |
-| Unparseable date | `date_raw` emitted, no fabricated ISO date |
-
-Browser-only surfaces (shortcut delivery, clipboard, downloads, dark mode, popup) get
-a manual checklist in `docs/manual-test.md` rather than a browser harness, which would
-add the dependency the project is avoiding.
-
-## 15. Icons
-
-Redesign at 16, 48, and 128 px. Authored as SVG, rasterised with `rsvg-convert`
-(verified present) to transparent PNGs at exact sizes.
-
-The mark is the universal copy glyph — two overlapping rounded squares, outlined,
-with no interior detail. Interior detail is precisely what destroys legibility at
-a distance, which an earlier "document with text rules" draft proved: it read as
-"files" rather than "copy". This is the same form Lucide, Anthropic, ChatGPT and
-Vercel's Geist all converge on, so it is instantly recognisable.
-
-Off-white (`#F7F6F0`) on near-black (`#0B0D0E`–`#23272C`) gives roughly 17:1
-contrast. A luminous rim at 22% opacity stops the tile merging into a dark
-browser toolbar. The house twist is that the back square is a frosted glass panel
-rather than a plain outline; that supplies the depth without blurs or noise,
-neither of which survive downscaling.
-
-16 px is a separate drawing. The gradient, sheen and back-square stroke all
-disappear or turn to mud at that size, so the tile goes flat and the geometry is
-retuned to keep the front square's interior open rather than closing into a dot.
-The front square keeps its outline there — filling it makes the mark read as
-generic "layers" instead of "copy".
-
-## 16. Repository and documentation
-
-- `git init`; `.gitignore` for `.DS_Store` and `node_modules`.
-- `LICENSE`: MIT, `Copyright (c) 2026 Moe Lueker / Zena Labs LLC`.
-- `README.md`: complete rewrite. Structure — the problem; what it does; four-step
-  install; how it works; a permissions table with a justification per line; shortcuts
-  and how to remap; honest limitations; running the tests; licence.
-- `STORE_LISTING.md`: removed. Web Store submission is out of scope for v2, and the
-  file names a different extension.
-- Distribution: tagged GitHub release with a prebuilt zip, so non-technical users
-  download one file, while the source remains the audit trail.
-
-## 17. Resolved inputs
-
-1. **GitHub handle** — `moekoelueker`.
-2. **Repository name** — `copy-gmail-thread-for-ai`.
-
-## 18. Where implementation diverged from this design
-
-Recorded so the document stays honest about the shipped code.
-
-**The quote-stripping safety valve was rebuilt (§7).** As specified it triggered
-on "the remainder is short", which a test proved wrong: a one-line reply such as
-"Sounds good." sitting above a long quoted chain looked exactly like a failed
-strip, so the valve fired and kept the entire chain — reintroducing the very
-quadratic blow-up the feature exists to prevent. It now judges the *removed
-tail* instead: if that tail contains more than 80 characters of unquoted prose
-it is treated as an inline reply and kept, otherwise the cut stands regardless
-of how short the remainder is.
-
-**A whitespace bug was found by the DOM tests.** The final cleanup pass in
-`lib/richtext.js` collapsed runs of spaces everywhere, including leading
-indentation, which silently flattened nested markdown lists. It now anchors on a
-preceding non-space character so indentation survives.
-
-**`targetPath()` now sanitises its own filename.** It previously trusted callers,
-which was safe in practice because `normalise()` sanitises first, but left the
-last function before the downloads API unsafe on its own terms.
-
-**Attachments are thread-level, not per-message (§8).** Gmail exposes attachment
-chips conversation-wide. Attributing each to a specific message would have meant
-guessing, so `format.js` emits them once for the thread and the README states
-the limitation.
-
-**Testing ended up in three layers, not one (§14).** Node unit tests for pure
-logic; `test/browser/index.html` for DOM code, opened directly in a browser
-because Node has no DOM and adding one means a dependency; and a Playwright
-end-to-end suite that loads the real extension into a real browser against a
-stand-in Gmail served at the real origin. The third layer exists because the
-first two passed while the extension copied the wrong conversation.
-
-Two environment findings shaped it. Chrome 137+ removed `--load-extension`, so
-a stock Chrome silently starts with no extension loaded; the suite uses
-Playwright's pinned Chromium. And Playwright's `headless: true` selects the
-headless shell binary, which cannot run extensions, so it runs the full browser
-under `--headless=new`.
-
-**Verified against live Gmail, and the markup differed from the design in three
-places.** The `ik` ladder (§4.4) worked, so `scripting` is gone as planned.
-Recipients are not on the first header row but a later one. Attachments are not
-in the live DOM at all but in the print view, as a table keyed by a Gmail icon —
-which turned out better than designed, because it makes per-message attribution
-real rather than the thread-level guess §8 settled for. Adjacent header cells
-also concatenate without a separator, which corrupted sender addresses until
-`TD`/`TH` were treated as breaks.
-
-**Attachments are per message, not thread-level.** §8 assumed Gmail only exposed
-them conversation-wide. The print view attributes them, so the output does too.
-
-**Escaping is split by role (§5).** One escaping function could not serve both
-purposes: bodies need light escaping so code and HTML discussion survive, while
-metadata needs full escaping or a recipient rendered `Name <addr>` puts a raw
-opening tag inside the document. Addresses are additionally normalised to
-`Name (addr)`.
-
-**Attachment processing was wired late.** Extraction populated each message, but
-nothing routed those entries through `lib/attachments.js`, so text files were
-never inlined and the save action silently downloaded nothing. Both paths now
-run per message, with the live-DOM scan kept only as a fallback.
+Email bodies and inline attachment text are placed in CDATA. Any `]]>` sequence
+is split into adjacent CDATA sections. All other text and attributes are
+XML-escaped, and invalid XML control characters are replaced.
+
+This prevents both opening-tag and closing-tag injection while keeping Markdown
+readable. A constant `content_trust` marker labels email and attachment text as
+untrusted data. Structured recipients and per-message attachments allow direct,
+unambiguous attribution.
+
+## User experience
+
+Two adjacent in-page buttons and the popup expose the same actions. A global
+busy guard prevents overlapping captures. Buttons disable as a group during
+work. Warning states use an alert role and a visually distinct toast.
+
+Success is shown only when the capture is complete and no download/attachment
+operation failed or was skipped. Otherwise the toast directs the user to the
+warnings in the pasted document.
+
+Labels and paths do not assume one operating system. The controls are designed
+for Chrome on macOS and Windows; Chrome owns shortcut remapping and the download
+directory.
+
+## Rejected alternatives
+
+- **Gmail API/OAuth:** broader setup and a new credential surface; conflicts
+  with using the already-open browser session.
+- **MAIN-world injection:** unnecessary privilege and harder review.
+- **Backend or cloud parser:** email would leave the browser.
+- **Broad live-DOM thread-ID search:** previously selected inbox decoys.
+- **Generic `href*=view=att` discovery:** email-controlled links could cross the
+  privileged fetch/download boundary.
+- **JSON:** mechanically safe, but multiline email becomes heavily escaped and
+  less readable for humans.
+- **YAML:** arbitrary email indentation and punctuation make it fragile.
+- **Raw tag-delimited Markdown:** email text can forge message boundaries.
+- **Bundled PDF/Office parsers:** large opaque runtime surface for a capability
+  downstream LLM tools already provide.
+- **Aggressive quote/signature deletion:** unacceptable risk of deleting inline
+  answers.
+
+The XML boundary is syntactic, not semantic. Email and attachment text can still
+contain instructions aimed at an LLM. The extension preserves that content and
+does not claim to solve prompt injection or a downstream provider’s data
+handling.
+
+## Verification boundary
+
+Automated tests cover pure helpers, browser DOM behavior, strict XML parsing,
+the installed extension, service-worker routing, the clipboard, completed test
+downloads, wrong-thread refusal, partial captures, and blocked external
+attachment requests.
+
+They do not prove future Gmail compatibility. The remaining live-session checks
+are documented in `docs/manual-test.md`. A file counts as a real-Gmail fixture
+only when it has a reviewed ground-truth sidecar; synthetic fixtures use a
+different prefix.

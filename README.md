@@ -1,252 +1,259 @@
 # Copy Gmail Thread for AI
 
-**A Chrome extension that copies a whole Gmail thread to your clipboard as
-clean markdown for ChatGPT, Claude, or any LLM — including messages Gmail
-collapsed, and including attachments.**
+Copy an open Gmail conversation into a structured, LLM-readable document—with
+clear sender, recipient, timestamp, body, and attachment attribution.
 
-One keystroke. No server, no analytics, no account. Nothing leaves your
-browser.
+The extension runs in Chrome on macOS and Windows. It does not ask for Google
+OAuth, an API key, or an extension account. It uses the Gmail session already
+open in the browser.
 
----
+## The problem it solves
 
-## The problem
+Copying a Gmail page by hand can omit collapsed messages, repeat quoted history,
+flatten tables, lose links, and separate attachments from the messages that
+carried them. An LLM can then answer confidently from an incomplete or
+misattributed conversation.
 
-You want to hand an email conversation to an AI assistant. Today that means:
-scroll to the top, click every collapsed message open one at a time,
-drag-select across signatures and legal disclaimers and
-`On Tue, Jul 7, 2026 at 4:03 PM ... wrote:` headers, and paste. What arrives is
-a wall of text with every hyperlink destroyed, every table flattened into
-newline soup, and the same quoted reply chain repeated once per message.
-Attachments can't come at all.
+This extension:
 
-So you paste something incomplete, the model reasons over it confidently, and
-you don't notice what was missing.
+- requests Gmail’s full print view for the thread already open;
+- checks that the returned subject matches the open conversation;
+- converts each message body to Markdown while keeping message boundaries in
+  strict XML;
+- records From, To, Cc, Bcc, local time, parsed ISO time, and attachment
+  attribution;
+- removes recognized quote chains and conservative signature patterns;
+- inlines bounded text attachments and can start Chrome downloads for files;
+- marks individual capture fields incomplete whenever it cannot verify them.
 
-This does the one thing: **press a key, get the whole thread, correctly.**
+## Install in Chrome
 
-## What you get
+No build step or terminal is required.
 
-```
-<email_thread>
+1. On GitHub, choose **Code → Download ZIP**.
+2. Unzip the download.
+3. In Chrome, open `chrome://extensions`.
+4. Turn on **Developer mode**.
+5. Choose **Load unpacked** and select the unzipped folder—the folder containing
+   `manifest.json`.
+6. Open a conversation in [Gmail](https://mail.google.com).
+
+Chrome may show permissions for Gmail, downloads, and the clipboard. Those are
+the only requested capabilities.
+
+Because this is an unpacked extension, updates are manual: replace the folder,
+then select **Reload** on `chrome://extensions` and reload the Gmail tab.
+
+## Use it
+
+Open a Gmail conversation, then use either the controls beside its subject or
+the extension popup:
+
+- **Copy thread** copies the structured conversation. It does not save files.
+- **Copy + save files** copies the same document and starts downloads for
+  verified Gmail attachments.
+
+Default shortcuts:
+
+| Action | macOS | Windows |
+|---|---|---|
+| Copy thread | `Option+C` | `Alt+C` |
+| Copy + save files | `Option+Shift+C` | `Alt+Shift+C` |
+
+If a shortcut conflicts with another app or keyboard layout, change it at
+`chrome://extensions/shortcuts`. Ordinary `Command+C` and `Ctrl+C` are not
+replaced.
+
+The extension never presents a Google authorization screen. You only need to
+be signed into Gmail in the active Chrome tab, as you normally would be.
+
+## Output
+
+The clipboard receives strict XML with Markdown inside CDATA:
+
+```xml
+<email_thread format_version="3">
 <meta>
-<subject>Q3 renewal terms</subject>
-<messages>6</messages>
-<participants>Jane Doe (jane@acme.com); You (you@example.com)</participants>
-<date_range>2026-07-07T16:03:00.000Z to 2026-07-19T09:12:00.000Z</date_range>
-<attachment_count>2</attachment_count>
+<subject>Q3 renewal</subject>
+<messages>2</messages>
+<message_candidates>2</message_candidates>
+<participants>
+<participant name="Jane Doe" email="jane@example.com"/>
+<participant name="Alex Kim" email="alex@example.com"/>
+</participants>
+<attachment_count>1</attachment_count>
 <source>print-view</source>
+<content_trust>untrusted_email_and_attachment_text</content_trust>
+<completeness messages="true" headers="true" attachments="true"/>
 <complete>true</complete>
-<url>https://mail.google.com/mail/u/0/#all/…</url>
 </meta>
-<message n="1" date="2026-07-07T16:03:00.000Z" local="Mon, Jul 7, 9:03 AM"
-         from="Jane Doe" email="jane@acme.com">
-<to>you@example.com</to>
-<body>
-Numbers for the renewal are below.
+<message n="1" date="2026-07-07T16:03:00.000Z"
+         local="Tue, Jul 7, 2026 at 9:03 AM"
+         from="Jane Doe" email="jane@example.com">
+<to>
+<recipient name="Alex Kim" email="alex@example.com"/>
+</to>
+<body format="markdown"><![CDATA[
+The renewal numbers are below.
 
 | Quarter | Revenue |
 | --- | --- |
 | Q3 | $1.2M |
-
-Full detail is in [the deck](https://example.com/deck).
-</body>
+]]></body>
 <attachments>
-<attachment name="Q3-forecast.pdf" type="application/pdf" size="240K"/>
+<attachment name="forecast.pdf" type="application/pdf"
+            size="240K"
+            status="not downloaded (use Copy + save files)"/>
 </attachments>
 </message>
 </email_thread>
 ```
 
-Tagged structure with markdown bodies. Email text routinely contains `#`,
-`---` and code fences, so markdown headings are ambiguous as message
-boundaries — tags aren't. JSON would escape every newline into `\n` soup; YAML
-breaks on arbitrarily indented email. This form stays readable to you and
-parses reliably for a model.
+When the relevant completeness fields are true, this representation gives an
+LLM explicit data for who said what, when, to whom, and which message carried a
+file. Unknown attachment attribution is labeled rather than guessed.
+Email-controlled text cannot create a fake `<message>` boundary because bodies
+and inline file contents are isolated in split-safe CDATA. Metadata and
+attributes are XML-escaped. The `content_trust` marker also tells a downstream
+agent that mail text is data rather than trusted instructions; it is advisory,
+not a complete prompt-injection defense.
 
-Three details exist specifically because a model reading the output got them
-wrong without them:
+`<complete>true</complete>` means all three declared dimensions—messages,
+headers, and attachment discovery—were verified by the parser. It does not mean
+that binary file contents were parsed. When Gmail’s full view is unavailable or
+markup is unrecognized, the output carries field-specific `false` values and
+machine-readable `<warning>` elements, and the UI shows a warning-colored
+toast. `<message_candidates>` records how many message-shaped tables Gmail
+returned, so a skipped candidate cannot be hidden by renumbering.
 
-- **`local` alongside the UTC `date`.** An evening reply in a western timezone
-  lands on the *next* UTC day, so "she replied twenty minutes later" reads as
-  "she replied the next day". Both stamps are given.
-- **Sender on the message tag**, not a child element, so one line identifies
-  who wrote what and when — and survives truncation.
-- **`participants` and `attachment_count` up front**, so a reader knows who is
-  involved and whether files exist without first reading the whole thread.
-
-**Every message is included**, including the ones Gmail collapsed, because the
-extension reads Gmail's own print view rather than scraping what happens to be
-on screen.
-
-## Install
-
-No build step, no dependencies, no account.
-
-1. Download this repository (**Code → Download ZIP**, then unzip) or
-   `git clone https://github.com/moekoelueker/copy-gmail-thread-for-ai.git`
-2. Open `chrome://extensions`
-3. Turn on **Developer mode** (top right)
-4. Click **Load unpacked** and select the folder
-
-Open a Gmail thread and press **Option+C** (**Alt+C** on Windows and Linux), or
-click **Copy Email Thread** next to the subject line.
-
-## Shortcuts
-
-| Action | Default |
-|---|---|
-| Copy the thread | `Alt+C` / `Option+C` |
-| Copy and save attachments | `Alt+Shift+C` |
-
-Both are remappable at **`chrome://extensions/shortcuts`** — there is no
-settings page because Chrome already provides a better one. Chrome intercepts
-these before the page sees them, so your normal copy is untouched and Option+C
-does not type a `ç`.
+Operational warnings—such as a text file that could not be inlined or a
+download that could not start—can appear even when capture completeness is
+true. Read warnings as well as the completeness flag.
 
 ## Attachments
 
-Attachments are **delivered, not parsed.**
+Text-like files (`.txt`, `.md`, `.csv`, `.tsv`, `.json`, `.log`, `.xml`,
+`.yml`, `.yaml`, and `.ics`) are inlined up to:
 
-- **Text-like files** (`.txt` `.md` `.csv` `.tsv` `.json` `.log` `.xml` `.yml`
-  `.yaml` `.ics`) are read and inlined directly into the copied text.
-- **Everything else** — PDFs, Word, Excel, images — is listed in the output
-  with its name, type and size. Press `Alt+Shift+C` to also save the files to
-  `~/Downloads/gmail-threads/<subject>/`, and the output references those paths.
+- 100 KB per file;
+- 300 KB total per thread.
 
-There is deliberately no PDF or Office parsing. Doing it would mean bundling
-roughly one to two megabytes of third-party minified code inside an extension
-that reads your mail, which would destroy the one property that makes this
-trustworthy: that you can read all of it yourself. Both places this output goes
-already read PDFs natively — Claude Code from disk, chat assistants as uploads.
+Larger text is explicitly marked truncated. PDFs, Office documents, images,
+archives, audio, and video are listed but not parsed. There is no OCR.
 
-Note that browsers cannot place a PDF on the clipboard as a *file*. That is a
-platform limit, not an oversight; any tool claiming otherwise is downloading to
-disk or uploading to a server.
+**Copy + save files** asks Chrome to download each verified Gmail attachment
+under:
 
-## How it works
+```text
+gmail-threads/<sanitized-subject>/<sanitized-filename>
+```
 
-Gmail still has a print view (`?view=pt&th=<threadId>`). One same-origin
-request with your existing session returns the whole conversation as static
-HTML — every message, fully expanded. The extension fetches it, converts each
-body to markdown, strips the quoted chains, and writes the result to your
-clipboard.
+That path is relative to the download directory configured in Chrome, which may
+be different on each Mac or Windows PC. Duplicate names receive deterministic
+suffixes. A file declared larger than 25 MB is not started. The clipboard says
+`download started`, not `saved`, because Chrome completes downloads
+asynchronously.
 
-No scrolling, no clicking messages open, no UI changes, one request.
+Chrome may further rename a file when the destination already exists or when
+the user chooses another name in a save prompt. The output reports Chrome’s
+resolved path when available; otherwise it reports the safe requested path.
 
-If Google ever removes the print view, there's a fallback that reads the
-visible page — and it says so, loudly, because a partial copy that looks
-complete is the worst thing this tool could do to you.
+Raw attachment URLs are never placed in the copied document.
 
-## Privacy and permissions
+## Privacy and security model
 
-**There is no server.** No analytics, no telemetry, no accounts, no API keys,
-no remote code, no `eval`, no `innerHTML`, no build step, and zero runtime
-dependencies. Exactly one network request per copy, to Gmail, same-origin.
+Runtime code is plain JavaScript in this repository. There is no server,
+analytics, telemetry, remote code, `eval`, runtime package, stored account, API
+key, Google OAuth flow, or extension-managed sign-in.
 
-| Permission | Why it's needed |
+| Permission | Purpose |
 |---|---|
-| `mail.google.com` | Read the thread you have open. The only site this extension can touch. |
-| `downloads` | Save attachments. Can only write inside your Downloads folder. |
-| `clipboardWrite` | Write the thread to your clipboard from the keyboard shortcut. |
+| `https://mail.google.com/*` | Read the open thread and its verified attachments using the existing browser session |
+| `clipboardWrite` | Copy from the in-page controls, popup, or keyboard-command path |
+| `downloads` | Start files only when the user chooses **Copy + save files** |
 
-**Not requested:** `storage` (nothing is ever persisted), `tabs`, `cookies`,
-`<all_urls>`, and — deliberately — `scripting`. An earlier approach injected
-code into Gmail's own JavaScript context to read a session token; this reads
-the same value with ordinary DOM access instead, so that capability is gone
-entirely.
+Important enforcement points:
 
-Because it's loaded unpacked, it cannot silently auto-update. What you read is
-what runs.
+- the content script runs only on the exact `mail.google.com` HTTPS origin;
+- attachment URLs must match that origin, the active Gmail account index, the
+  active thread ID, the attachment endpoint, and an attachment identifier;
+- the service worker repeats URL and destination-path validation at the
+  privileged download boundary;
+- paths are relative, traversal-free, control-character-free, and confined to
+  `gmail-threads/`;
+- filenames are sanitized while preserving ordinary Unicode names;
+- remote email images become inert descriptions such as `[image: logo]`, so
+  pasting the output cannot cause an LLM client to load a tracking pixel;
+- capture failures are reported rather than silently promoted to complete.
 
-## Limitations
+Loading unpacked also means the code cannot silently auto-update. The tradeoff
+is that the user must install security updates manually.
 
-Stated plainly, because you should know these before trusting it:
+## Honest limitations
 
-- **Recipients are parsed from undocumented markup.** `To` and `Cc` come from
-  the print view's header rows, which Google does not document and can change.
-  Verified working on real threads; not guaranteed to survive a Gmail redesign.
-- **Signature images survive as `[image: name]`.** A logo in a sender's
-  signature repeats on every message. Suppressing trailing images would also
-  drop screenshots people meant to send, so the noise is kept deliberately.
-- **Attachment detection relies on Gmail's print-view markup.** Attachments are
-  attributed to the message that carried them, read from the print view rather
-  than the live page. If Google changes that markup, files will show up as
-  leftover text in the body instead of as structured attachments.
-- **Inline replies inside quoted text are kept along with their quotes.** When
-  the quote-stripper detects real prose inside a quoted block it keeps the
-  whole thing. Keeping noise beats deleting someone's reply.
-- **Scanned PDFs and images are not read.** No OCR. They're delivered as files.
-- **Images are described rather than linked when Gmail proxies them.** Gmail
-  rewrites remote images through a session-gated `googleusercontent` URL that
-  nothing downstream can fetch and that runs to hundreds of characters. Where
-  the real address can be recovered it is kept; otherwise you get `[image: alt]`
-  rather than a long dead link. Tracking pixels are dropped outright.
-- **It depends on Gmail's internals** and will eventually break when Google
-  changes them. It fails loudly rather than silently.
+Gmail’s print view and DOM classes are undocumented. Google can change them.
+The adapter is deliberately fail-closed around thread identity and attachment
+capabilities, and it labels partial results, but no static test can guarantee a
+future Gmail layout.
 
-## Development
+Other limits:
 
-**The extension itself has zero runtime dependencies and no build step.** What
-you clone is what Chrome runs. The tooling below is for tests only and never
-ships.
+- email bodies and attachment text remain untrusted. XML isolation prevents
+  structural forgery, but it cannot neutralize semantic prompt injection;
+  review the conversation before asking an LLM to act on it;
+- pasting mail into a third-party LLM sends that data according to the
+  provider’s policy. The extension itself performs no such upload;
+- ordinary hyperlinks are preserved, and a downstream client may choose to
+  generate link previews;
+- recipient labels outside the tested language set may be missed and will make
+  header completeness false;
+- branching reply relationships are flattened into Gmail’s print order;
+- the output does not identify which participant owns the mailbox;
+- quote and signature removal is conservative: some noise may remain so that
+  ambiguous inline replies are not deleted;
+- visible-page fallback can only see expanded content and is always marked
+  partial;
+- real Gmail behavior, themes, shortcut registration, and download preferences
+  still require the [manual checklist](docs/manual-test.md).
+
+## Development and verification
+
+The extension itself has no build step. Playwright is a development-only
+dependency for browser tests.
 
 ```bash
-node --test "test/*.test.js"   # 57 unit tests — parsing, cleaning, formatting, sanitising
-open test/browser/index.html   # 37 DOM tests — the HTML→markdown converter, no install needed
-
-npm install                    # only for the end-to-end suite
-npm run test:e2e               # 13 tests — the real extension in a real browser
-npm run test:all               # everything
+npm install
+npm test                 # pure Node unit tests
+npm run test:browser     # DOM conversion and parser tests in Chromium
+npm run test:e2e         # the installed extension against a network-blocked Gmail stand-in
+npm run test:all         # all of the above
 ```
 
-The end-to-end suite loads the actual extension into Chromium and serves a
-stand-in Gmail **at the real origin**, so the manifest match pattern, the
-same-origin print-view fetch, the service worker, the clipboard and the
-downloads API all behave exactly as in production — without touching a mailbox.
-It covers the regressions unit tests missed: copying the wrong conversation,
-attachments being extracted and then dropped, partial captures reported as
-complete.
+The end-to-end harness loads the actual manifest and service worker. It verifies
+wrong-thread refusal, partial-capture signaling, clipboard behavior, successful
+downloads, deterministic paths, and rejection of crafted off-origin attachment
+metadata. The fixture workflow disables JavaScript and all network access while
+redacting a capture; see [docs/fixtures.md](docs/fixtures.md).
 
-Run it headed to watch: `HEADED=1 npm run test:e2e`.
+Current boundaries:
 
-Two implementation notes, both learned the hard way. It uses Playwright's
-Chromium rather than your system Chrome, because Chrome 137+ removed
-`--load-extension` and a stock Chrome silently starts with no extension loaded.
-And it runs the full browser in `--headless=new` rather than Playwright's
-`headless: true`, because the latter selects the headless *shell* binary, which
-cannot run extensions at all.
-
-To test against your own mail safely, see **[docs/fixtures.md](docs/fixtures.md)**:
-capture a thread's print view, run `npm run redact` to strip everything
-identifying while preserving the structure, and it becomes a permanent
-regression test.
-
-Layout:
-
-```
-adapters/gmail.js     everything Gmail-specific, behind a 3-method interface
-lib/text.js           dates, filename sanitising, URL handling
-lib/richtext.js       DOM → markdown (links, tables, lists, code)
-lib/clean.js          quoted-chain and signature removal
-lib/format.js         thread → tagged output
-lib/attachments.js    classify, inline, sanitise, download
-content.js            orchestration and in-page UI
-background.js         shortcuts and downloads
+```text
+adapters/gmail.js        live Gmail identity and same-origin transport
+adapters/gmail-parse.js  detached print-view parsing
+lib/security.js          shared URL and download-path policy
+lib/attachments.js       canonical attachment pipeline
+lib/clean.js             quote and signature handling
+lib/richtext.js          email HTML to Markdown
+lib/format.js            strict output envelope
+content.js               orchestration and Gmail-page controls
+background.js            commands and privileged downloads
 ```
 
-Everything provider-specific lives in `adapters/`, so supporting another mail
-service is a new file rather than a rewrite.
-
-## Contributing
-
-`docs/OPEN-ITEMS.md` records what is unfinished and what is deliberately
-left alone. `docs/design/v2-design.md` records why each decision was made,
-including the alternatives that were rejected — worth reading before
-proposing changes. `docs/AUDIT-BRIEF.md` is a standing brief for anyone
-who wants to review the project critically.
+Design rationale is in [docs/design/v2-design.md](docs/design/v2-design.md).
+Known limits and remaining work are in [docs/OPEN-ITEMS.md](docs/OPEN-ITEMS.md).
+The original adversarial review prompt is retained as a historical record in
+[docs/AUDIT-BRIEF.md](docs/AUDIT-BRIEF.md).
 
 ## License
 
-MIT — see [LICENSE](LICENSE). Copyright © 2026 Moe Lueker / Zena Labs LLC.
-
-Not affiliated with Google or Anthropic.
+MIT. Not affiliated with Google, OpenAI, Anthropic, or Microsoft.

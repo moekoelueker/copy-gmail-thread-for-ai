@@ -1,24 +1,22 @@
-// Orchestration and UI. Everything provider-specific lives in adapters/gmail.js.
+// Gmail-page orchestration and user interface.
 
 (() => {
   const CT = globalThis.CT;
   const { adapter: A, format: F, attachments: AT } = CT;
-  const ERR = A.ERR;
 
   const MESSAGES = {
     NOT_ON_THREAD: "Open an email thread first.",
-    NO_IK: "Couldn't read Gmail's session key — reload Gmail and retry.",
-    NOT_LOGGED_IN: "Gmail session expired — reload and sign in.",
-    FETCH_FAILED: "Gmail wouldn't return the thread — reload and retry.",
-    PARSE_EMPTY: "Couldn't read any messages from this thread.",
-    WRONG_THREAD: "Gmail returned a different conversation — nothing copied. Reload and retry.",
-    CLIPBOARD_BLOCKED: "Clipboard blocked — click the page, then try again.",
+    NOT_LOGGED_IN: "Your Gmail session expired. Reload Gmail, sign in, and try again.",
+    FETCH_FAILED: "Gmail couldn't provide this thread, and no visible messages could be read.",
+    PARSE_EMPTY: "Gmail returned no messages that the extension could safely parse.",
+    WRONG_THREAD: "Gmail returned a different conversation. Nothing was copied.",
+    THREAD_CHANGED: "The open conversation changed while copying. Nothing was copied.",
+    CLIPBOARD_BLOCKED:
+      "Chrome blocked the clipboard. Click Gmail and retry; file downloads may already have started.",
   };
 
   const SIZE_WARN_BYTES = 400 * 1024;
   const MESSAGE_WARN_COUNT = 150;
-
-  // ---------- toast ----------
 
   let toastEl = null;
   let toastTimers = [];
@@ -30,38 +28,31 @@
 
     toastEl = document.createElement("div");
     toastEl.className = "ctl-toast" + (opts.warn ? " ctl-toast-warn" : "");
-    toastEl.setAttribute("role", "status");
-    toastEl.setAttribute("aria-live", "polite");
+    toastEl.setAttribute("role", opts.warn ? "alert" : "status");
+    toastEl.setAttribute("aria-live", opts.warn ? "assertive" : "polite");
     toastEl.textContent = text;
     document.body.appendChild(toastEl);
 
-    const life = opts.sticky ? 15000 : opts.warn ? 6000 : 2600;
+    const life = opts.sticky ? 15000 : opts.warn ? 7000 : 3000;
     const el = toastEl;
     toastTimers.push(setTimeout(() => el.classList.add("ctl-toast-out"), life - 400));
     toastTimers.push(setTimeout(() => el.remove(), life));
   }
 
-  // ---------- clipboard ----------
-  //
-  // Two paths on purpose. A button click carries transient user activation, so
-  // the async API is clean. A keyboard command does not, and since Chrome 107 a
-  // command-triggered navigator.clipboard call can raise a permission prompt —
-  // so that path uses execCommand, which the clipboardWrite permission covers.
-
   function writeViaTextarea(text) {
-    const ta = document.createElement("textarea");
-    ta.value = text;
-    ta.setAttribute("aria-hidden", "true");
-    ta.style.cssText = "position:fixed;top:-1000px;left:-1000px;opacity:0;";
-    document.body.appendChild(ta);
-    ta.select();
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("aria-hidden", "true");
+    textarea.style.cssText = "position:fixed;top:-1000px;left:-1000px;opacity:0;";
+    document.body.appendChild(textarea);
+    textarea.select();
     let ok = false;
     try {
       ok = document.execCommand("copy");
     } catch (e) {
       console.warn("[copy-gmail-thread] execCommand copy failed:", e);
     }
-    ta.remove();
+    textarea.remove();
     return ok;
   }
 
@@ -77,170 +68,330 @@
     return writeViaTextarea(text);
   }
 
-  // ---------- downloads ----------
-
-  function requestDownload(url, path) {
+  function requestDownload(url, path, context) {
     return new Promise((resolve) => {
       try {
-        chrome.runtime.sendMessage({ type: "download", url, path }, (resp) => {
-          if (chrome.runtime.lastError) {
-            console.warn("[copy-gmail-thread]", chrome.runtime.lastError.message);
-            return resolve({ ok: false });
+        chrome.runtime.sendMessage(
+          {
+            type: "download",
+            url,
+            path,
+            threadId: context.threadId,
+          },
+          (response) => {
+            if (chrome.runtime.lastError) {
+              console.warn("[copy-gmail-thread]", chrome.runtime.lastError.message);
+              resolve({ ok: false, error: "download failed to start" });
+              return;
+            }
+            resolve(response || { ok: false, error: "download failed to start" });
           }
-          resolve(resp || { ok: false });
-        });
+        );
       } catch (e) {
         console.warn("[copy-gmail-thread] download message failed:", e);
-        resolve({ ok: false });
+        resolve({ ok: false, error: "download failed to start" });
       }
     });
   }
 
-  // ---------- main ----------
+  function addWarning(thread, code, message) {
+    thread.warnings = Array.isArray(thread.warnings) ? thread.warnings : [];
+    if (!thread.warnings.some((warning) => warning.code === code && warning.message === message)) {
+      thread.warnings.push({ code, message });
+    }
+  }
+
+  function captureComplete(thread) {
+    const c = thread.completeness || {};
+    return c.messages === true && c.headers === true && c.attachments === true;
+  }
 
   let busy = false;
 
+  function setControlsBusy(value) {
+    for (const group of document.querySelectorAll(".ctl-actions")) {
+      group.setAttribute("aria-busy", String(value));
+    }
+    for (const button of document.querySelectorAll(".ctl-actions button")) {
+      button.disabled = value;
+      button.classList.toggle("ctl-loading", value);
+    }
+  }
+
   async function run(mode, viaGesture) {
-    if (busy) return;
+    if (busy) {
+      toast("A thread copy is already in progress.");
+      return;
+    }
     busy = true;
+    setControlsBusy(true);
     try {
       if (!A.isThreadOpen()) {
-        toast(MESSAGES.NOT_ON_THREAD);
+        toast(MESSAGES.NOT_ON_THREAD, { warn: true });
         return;
       }
-      toast(mode === "save" ? "Copying thread and saving attachments…" : "Copying thread…", {
+
+      toast(mode === "save" ? "Copying thread and starting file downloads…" : "Copying thread…", {
         sticky: true,
       });
-
-      const res = await A.getThread();
-      if (!res.ok) {
-        toast(MESSAGES[res.error] || MESSAGES.PARSE_EMPTY, { warn: true });
+      const response = await A.getThread();
+      if (!response.ok) {
+        toast(MESSAGES[response.error] || MESSAGES.PARSE_EMPTY, { warn: true, sticky: true });
         return;
       }
-      const thread = res.thread;
 
-      // Attachments found in the print view are attributed to their own message
-      // and must still be processed — inlined if they are text, downloaded on a
-      // save. Without this they were listed but never fetched, which quietly
-      // made the save action a no-op.
+      const thread = response.thread;
+      if (!A.identityMatches(thread)) {
+        toast(MESSAGES.THREAD_CHANGED, { warn: true, sticky: true });
+        return;
+      }
+      const context = {
+        threadId: thread.threadId,
+        accountIndex: thread.accountIndex,
+      };
+
+      let attachmentSummary = {
+        total: 0,
+        inlined: 0,
+        inlineFailed: 0,
+        inlineSkipped: 0,
+        inlineTruncated: 0,
+        downloadStarted: 0,
+        downloadFailed: 0,
+        skipped: 0,
+        unsafe: 0,
+        noLink: 0,
+      };
       try {
-        let found = 0;
-        for (const m of thread.messages) {
-          if (!m.attachments || !m.attachments.length) continue;
-          found += m.attachments.length;
-          m.attachments = await AT.collect(m.attachments, thread.subject, mode, requestDownload);
+        const liveResult = A.getAttachments(thread);
+        const live = liveResult.items;
+        if (liveResult.truncated) {
+          thread.completeness.attachments = false;
+          addWarning(
+            thread,
+            "ATTACHMENT_SCAN_LIMIT",
+            `Live attachment discovery stopped at ${A.MAX_LIVE_ATTACHMENTS} candidates.`
+          );
+        }
+        const merged = AT.mergeRaw(thread.attachments, live, context);
+        if (merged.supplementalOnly > 0) {
+          thread.completeness.attachments = false;
+          addWarning(
+            thread,
+            "ATTACHMENT_ATTRIBUTION_UNKNOWN",
+            `${merged.supplementalOnly} attachment(s) were visible on the Gmail page but missing ` +
+              "from the print-view parse; their message attribution is unknown."
+          );
         }
 
-        // Only fall back to scanning the live page when the print view gave us
-        // nothing; otherwise the same files would be listed twice.
-        if (!found) {
-          const raw = A.getAttachments();
-          if (raw.length) {
-            thread.attachments = await AT.collect(raw, thread.subject, mode, requestDownload);
-          }
+        const collected = await AT.collect(
+          merged.items,
+          thread.subject,
+          mode,
+          requestDownload,
+          context
+        );
+        thread.attachments = collected.items;
+        attachmentSummary = collected.summary;
+
+        if (attachmentSummary.unsafe || attachmentSummary.noLink) {
+          thread.completeness.attachments = false;
+          addWarning(
+            thread,
+            "ATTACHMENT_UNAVAILABLE",
+            "At least one attachment lacked a verified Gmail download link and was not fetched."
+          );
+        }
+        if (attachmentSummary.downloadFailed) {
+          addWarning(
+            thread,
+            "DOWNLOAD_FAILED",
+            `${attachmentSummary.downloadFailed} download(s) failed to start.`
+          );
+        }
+        if (attachmentSummary.inlineFailed) {
+          addWarning(
+            thread,
+            "INLINE_ATTACHMENT_FAILED",
+            `${attachmentSummary.inlineFailed} text attachment(s) could not be read.`
+          );
+        }
+        if (attachmentSummary.inlineSkipped) {
+          addWarning(
+            thread,
+            "INLINE_ATTACHMENT_LIMIT",
+            `${attachmentSummary.inlineSkipped} text attachment(s) were not inlined because ` +
+              "the per-thread text limit was reached."
+          );
+        }
+        if (attachmentSummary.inlineTruncated) {
+          addWarning(
+            thread,
+            "INLINE_ATTACHMENT_TRUNCATED",
+            `${attachmentSummary.inlineTruncated} text attachment(s) were truncated at a safe limit.`
+          );
+        }
+        if (attachmentSummary.skipped) {
+          addWarning(
+            thread,
+            "DOWNLOAD_SKIPPED",
+            `${attachmentSummary.skipped} attachment(s) exceeded the safe download limit.`
+          );
         }
       } catch (e) {
-        console.warn("[copy-gmail-thread] attachment collection failed:", e);
+        console.warn("[copy-gmail-thread] attachment processing failed:", e);
+        thread.completeness.attachments = false;
+        addWarning(
+          thread,
+          "ATTACHMENT_PROCESSING_FAILED",
+          "Attachment processing failed; message text was still copied."
+        );
       }
 
+      thread.complete = captureComplete(thread);
       const output = F.build(thread);
-      const wrote = await copyToClipboard(output, viaGesture);
-      if (!wrote) {
-        toast(MESSAGES.CLIPBOARD_BLOCKED, { warn: true });
+      if (!(await copyToClipboard(output, viaGesture))) {
+        toast(MESSAGES.CLIPBOARD_BLOCKED, { warn: true, sticky: true });
         return;
       }
 
-      const n = thread.messages.length;
-      const parts = [`${n} message${n === 1 ? "" : "s"}`];
-      if (thread.attachments?.length) {
-        const saved = thread.attachments.filter((a) => a.path).length;
+      const messageCount = thread.messages.length;
+      const parts = [`${messageCount} message${messageCount === 1 ? "" : "s"}`];
+      if (attachmentSummary.total) {
         parts.push(
-          saved
-            ? `${saved} attachment${saved === 1 ? "" : "s"} saved`
-            : `${thread.attachments.length} attachment${thread.attachments.length === 1 ? "" : "s"} listed`
+          `${attachmentSummary.total} attachment${attachmentSummary.total === 1 ? "" : "s"}`
         );
       }
+      if (attachmentSummary.inlined) parts.push(`${attachmentSummary.inlined} inlined`);
+      if (attachmentSummary.inlineFailed) {
+        parts.push(`${attachmentSummary.inlineFailed} inline read failed`);
+      }
+      if (attachmentSummary.inlineSkipped) {
+        parts.push(`${attachmentSummary.inlineSkipped} not inlined`);
+      }
+      if (attachmentSummary.inlineTruncated) {
+        parts.push(`${attachmentSummary.inlineTruncated} truncated`);
+      }
+      if (attachmentSummary.downloadStarted) {
+        parts.push(`${attachmentSummary.downloadStarted} download${attachmentSummary.downloadStarted === 1 ? "" : "s"} started`);
+      }
+      if (attachmentSummary.downloadFailed) {
+        parts.push(`${attachmentSummary.downloadFailed} download${attachmentSummary.downloadFailed === 1 ? "" : "s"} failed`);
+      }
+      if (attachmentSummary.skipped) parts.push(`${attachmentSummary.skipped} skipped`);
       if (thread.quotedTrimmed) parts.push("quoted text trimmed");
-      if (output.length > SIZE_WARN_BYTES || n > MESSAGE_WARN_COUNT) {
-        parts.push(`${Math.round(output.length / 1024)} KB`);
+
+      const outputBytes = new TextEncoder().encode(output).byteLength;
+      if (outputBytes > SIZE_WARN_BYTES || messageCount > MESSAGE_WARN_COUNT) {
+        parts.push(formatOutputSize(outputBytes));
       }
 
-      // A partial capture must never be reported as a clean success.
-      if (thread.complete === false) {
-        toast(`⚠ Copied ${parts.join(" · ")} — collapsed messages may be missing`, {
+      const operationalWarning =
+        attachmentSummary.downloadFailed ||
+        attachmentSummary.skipped ||
+        attachmentSummary.inlineFailed ||
+        attachmentSummary.inlineSkipped ||
+        attachmentSummary.inlineTruncated ||
+        attachmentSummary.unsafe ||
+        attachmentSummary.noLink;
+      if (!thread.complete || operationalWarning) {
+        toast(`⚠ Copied ${parts.join(" · ")} — review warnings in the pasted output`, {
           warn: true,
+          sticky: true,
         });
       } else {
         toast(`✓ Copied ${parts.join(" · ")}`);
       }
     } catch (e) {
       console.error("[copy-gmail-thread] unexpected failure:", e);
-      toast("Something went wrong — see the console for details.", { warn: true });
+      toast("Something went wrong. See the console; file downloads may already have started.", {
+        warn: true,
+        sticky: true,
+      });
     } finally {
       busy = false;
+      setControlsBusy(false);
     }
   }
 
-  // ---------- button ----------
+  function formatOutputSize(bytes) {
+    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
 
-  function attachButton() {
-    const subject = document.querySelector("h2.hP");
-    if (!subject?.parentElement) return;
-    if (subject.parentElement.querySelector(".ctl-btn")) return;
-
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "ctl-btn";
-    b.textContent = "Copy Email Thread";
-    b.setAttribute("aria-label", "Copy this email thread as LLM-ready text");
-    b.title = "Copy the full thread (see chrome://extensions/shortcuts for the keyboard shortcut)";
-    b.addEventListener("click", async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      b.disabled = true;
-      b.classList.add("ctl-loading");
-      await run("copy", true);
-      b.classList.remove("ctl-loading");
-      b.disabled = false;
+  function makeAction(label, className, mode, description) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `ctl-btn ${className}`;
+    button.textContent = label;
+    button.setAttribute("aria-label", description);
+    button.title = description;
+    button.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      await run(mode, true);
     });
-    subject.parentElement.appendChild(b);
+    return button;
+  }
+
+  function attachButtons() {
+    const subject = A.subjectElement();
+    if (!subject?.parentElement) return;
+    if (subject.nextElementSibling?.classList.contains("ctl-actions")) return;
+    document.querySelectorAll(".ctl-actions").forEach((group) => group.remove());
+
+    const group = document.createElement("span");
+    group.className = "ctl-actions";
+    group.setAttribute("role", "group");
+    group.setAttribute("aria-label", "Copy Gmail thread");
+    group.setAttribute("aria-busy", "false");
+    group.append(
+      makeAction(
+        "Copy thread",
+        "ctl-btn-copy",
+        "copy",
+        "Copy this conversation as structured text"
+      ),
+      makeAction(
+        "Copy + save files",
+        "ctl-btn-save",
+        "save",
+        "Copy this thread and start downloads for its attachments"
+      )
+    );
+    subject.insertAdjacentElement("afterend", group);
   }
 
   function contextAlive() {
     try {
-      return Boolean(chrome.runtime && chrome.runtime.id);
+      return Boolean(chrome.runtime?.id);
     } catch (_) {
       return false;
     }
   }
 
-  // Gmail mutates its DOM constantly. The previous version ran this handler on
-  // every single mutation; debouncing keeps it off the critical path.
   let pending = null;
   const observer = new MutationObserver(() => {
     if (!contextAlive()) {
       observer.disconnect();
-      document.querySelectorAll(".ctl-btn, .ctl-toast").forEach((el) => el.remove());
+      document.querySelectorAll(".ctl-actions, .ctl-toast").forEach((element) => element.remove());
       return;
     }
     if (pending) return;
     pending = setTimeout(() => {
       pending = null;
-      attachButton();
+      attachButtons();
     }, 250);
   });
 
   observer.observe(document.body, { childList: true, subtree: true });
-  attachButton();
+  attachButtons();
 
-  // Keyboard shortcuts are declared in the manifest and dispatched by the
-  // service worker, so they are remappable at chrome://extensions/shortcuts and
-  // never shadow the browser's own copy.
-  chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-    if (msg?.type === "run") {
-      run(msg.mode === "save" ? "save" : "copy", Boolean(msg.viaGesture));
+  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message?.type === "run") {
+      run(message.mode === "save" ? "save" : "copy", Boolean(message.viaGesture));
       sendResponse({ ok: true });
-    } else if (msg?.type === "ping") {
+    } else if (message?.type === "ping") {
       sendResponse({ ok: true, onThread: A.isThreadOpen() });
     }
     return false;

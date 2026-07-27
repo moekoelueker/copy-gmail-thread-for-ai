@@ -33,6 +33,14 @@ test("sanitizeFilename falls back when nothing survives", () => {
   assert.strictEqual(T.sanitizeFilename(null), "attachment");
 });
 
+test("sanitizeFilename avoids Windows device names and trailing dots", () => {
+  assert.strictEqual(T.sanitizeFilename("CON"), "_CON");
+  assert.strictEqual(T.sanitizeFilename("nul.txt"), "_nul.txt");
+  assert.strictEqual(T.sanitizeFilename("LPT1 .txt"), "_LPT1.txt");
+  assert.strictEqual(T.sanitizeFilename("report.pdf."), "report.pdf");
+  assert.strictEqual(T.slugify("CON"), "_con");
+});
+
 test("sanitizeFilename truncates but keeps the extension", () => {
   const out = T.sanitizeFilename("x".repeat(300) + ".pdf");
   assert.ok(out.length <= 100, `length ${out.length}`);
@@ -84,12 +92,29 @@ test("subjectsMatch tolerates reply and forward prefixes", () => {
   assert.ok(T.subjectsMatch("Re: Q3 renewal", "Q3 renewal"));
   assert.ok(T.subjectsMatch("Fwd: Re: Q3 renewal", "Q3 renewal"));
   assert.ok(T.subjectsMatch("AW: Q3 renewal", "Re: Q3 renewal"));
-  assert.ok(T.subjectsMatch("Gmail - Q3 renewal terms", "Q3 renewal terms"));
+  assert.strictEqual(
+    T.subjectsMatch("Gmail - Q3 renewal terms", "Q3 renewal terms"),
+    false,
+    "mailbox-title wrappers belong in the adapter, not identity normalization"
+  );
 });
 
-test("subjectsMatch does not block when a subject is unavailable", () => {
-  assert.ok(T.subjectsMatch("", "Q3 renewal"));
-  assert.ok(T.subjectsMatch("Q3 renewal", ""));
+test("subjectsMatch fails closed when a subject is unavailable", () => {
+  assert.strictEqual(T.subjectsMatch("", "Q3 renewal"), false);
+  assert.strictEqual(T.subjectsMatch("Q3 renewal", ""), false);
+});
+
+test("subjectsMatch does not accept substring or non-Latin collisions", () => {
+  assert.strictEqual(T.subjectsMatch("Budget", "Budget Q3"), false);
+  assert.strictEqual(T.subjectsMatch("契約更新", "請求書"), false);
+  assert.strictEqual(T.subjectsMatch("契約更新", "契約更新"), true);
+});
+
+test("parseSizeBytes handles Gmail units and rejects ambiguous text", () => {
+  assert.strictEqual(T.parseSizeBytes("153K"), 153 * 1024);
+  assert.strictEqual(T.parseSizeBytes("1.5 MB"), Math.round(1.5 * 1024 * 1024));
+  assert.strictEqual(T.parseSizeBytes("1,5 MB"), Math.round(1.5 * 1024 * 1024));
+  assert.strictEqual(T.parseSizeBytes("large"), null);
 });
 
 test("normalizeAddress removes angle brackets that would read as markup", () => {
@@ -122,4 +147,6 @@ test("isSafeUrl rejects script and data URLs", () => {
   assert.ok(T.isSafeUrl("mailto:a@b.com"));
   assert.ok(!T.isSafeUrl("javascript:alert(1)"));
   assert.ok(!T.isSafeUrl("data:text/html,<script>"));
+  assert.ok(!T.isSafeUrl("https:example.com"));
+  assert.ok(!T.isSafeUrl("https://user:password@example.com"));
 });

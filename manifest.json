@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Copy Gmail Thread for AI",
-  "version": "2.0.0",
-  "description": "Copy a whole Gmail thread — every message, links, tables, attachments — as clean LLM-ready text. One shortcut, entirely local.",
+  "version": "2.1.0",
+  "description": "Copy an open Gmail thread as structured text with completeness warnings. No OAuth, server, analytics, or account.",
   "permissions": [
     "downloads",
     "clipboardWrite"
@@ -43,10 +43,12 @@
       ],
       "js": [
         "lib/text.js",
+        "lib/security.js",
         "lib/richtext.js",
         "lib/clean.js",
         "lib/format.js",
         "lib/attachments.js",
+        "adapters/gmail-parse.js",
         "adapters/gmail.js",
         "content.js"
       ],

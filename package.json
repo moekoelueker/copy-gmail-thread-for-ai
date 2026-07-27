@@ -1,12 +1,13 @@
 {
   "name": "copy-gmail-thread-for-ai",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "private": true,
-  "description": "Chrome extension: copy an entire Gmail thread as clean markdown for any LLM.",
+  "description": "Chrome extension: copy an open Gmail thread as XML with Markdown bodies and completeness signals.",
   "scripts": {
     "test": "node --test \"test/*.test.js\"",
+    "test:browser": "node tools/run-browser-tests.js",
     "test:e2e": "node --test \"test/e2e/*.test.js\"",
-    "test:all": "npm test && npm run test:e2e",
+    "test:all": "npm test && npm run test:browser && npm run test:e2e",
     "redact": "node tools/redact-fixture.js"
   },
   "devDependencies": {

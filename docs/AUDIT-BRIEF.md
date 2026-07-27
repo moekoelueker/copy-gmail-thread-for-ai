@@ -1,5 +1,11 @@
 # Independent audit brief
 
+> **Historical review input:** this brief describes the pre-2.1 implementation
+> and the defects known at that time. It is retained so the audit remains
+> reproducible; it is not current product documentation. See
+> [`design/v2-design.md`](design/v2-design.md) for the implemented architecture
+> and [`OPEN-ITEMS.md`](OPEN-ITEMS.md) for current limitations.
+
 A self-contained prompt for an AI agent or human reviewer asked to audit this
 project. Everything needed to start is below; nothing is assumed from prior
 conversation.
