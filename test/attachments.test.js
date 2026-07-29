@@ -202,3 +202,68 @@ test("targetPath stays inside the extension folder", () => {
   assert.ok(p.startsWith("gmail-threads/"), p);
   assert.ok(!p.includes(".."), p);
 });
+
+// Gmail percent-encodes the filename inside download_url. Leaving it encoded
+// made a chip name sanitize to "Claim_20form.pdf" while the print-view entry
+// stayed "Claim form.pdf", so the merge could not pair them and reported one
+// file twice.
+test("decodes a percent-encoded filename in a download_url value", () => {
+  const got = A.parseDownloadUrl(
+    "application/pdf:Quarterly%20Report%20-%20Q3.pdf:" +
+      "/mail/u/0/?view=att&th=THREAD_REAL&attid=0.1"
+  );
+  assert.strictEqual(got.name, "Quarterly Report - Q3.pdf");
+});
+
+test("keeps a filename whose percent sign is not an escape", () => {
+  const got = A.parseDownloadUrl(
+    "application/pdf:100%discount.pdf:/mail/u/0/?view=att&th=THREAD_REAL&attid=0.1"
+  );
+  assert.strictEqual(got.name, "100%discount.pdf");
+});
+
+test("a decoded chip name merges with its print-view entry instead of doubling", () => {
+  const printView = [
+    { name: "Claim form.pdf", url: null, messageN: 1, source: "print-view" },
+  ];
+  const live = [
+    {
+      name: A.parseDownloadUrl(
+        "application/pdf:Claim%20form.pdf:https://mail-attachment.example/x"
+      ).name,
+      messageN: null,
+      source: "live-page",
+    },
+  ];
+  const merged = A.mergeRaw(printView, live, CONTEXT);
+  assert.strictEqual(merged.items.length, 1);
+  assert.strictEqual(merged.supplementalOnly, 0);
+});
+
+// Merging the chip into the print-view entry fixes the count, but the entry it
+// keeps has no URL of its own. Without carrying the chip's refused URL across,
+// the merged attachment would claim no link was ever found — understating a
+// link that was on the page and was refused.
+test("a merged entry still reports a refused chip link rather than no link", () => {
+  const printView = [
+    { name: "Claim form.pdf", url: null, messageN: 1, source: "print-view" },
+  ];
+  const live = [
+    {
+      name: "Claim form.pdf",
+      href:
+        "https://mail-attachment.googleusercontent.com/attachment/u/0/" +
+        "?view=att&th=THREAD_REAL&attid=0.1",
+      messageN: null,
+      source: "live-page",
+    },
+  ];
+  const merged = A.mergeRaw(printView, live, CONTEXT);
+  assert.strictEqual(merged.items.length, 1);
+
+  const normalised = A.normalise(merged.items, "Subject", CONTEXT);
+  assert.strictEqual(normalised.length, 1);
+  assert.strictEqual(normalised[0].url, null);
+  assert.strictEqual(normalised[0].rejectedUrl, true);
+  assert.strictEqual(normalised[0].messageN, 1);
+});

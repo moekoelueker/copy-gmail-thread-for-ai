@@ -219,3 +219,25 @@ test("extracts the Gmail account index without accepting another origin", () => 
     null
   );
 });
+
+// Gmail's print view is served from /mail/u/<n>/ and emits attachment hrefs
+// relative to it. Resolving those against the bare origin produced pathname
+// "/" and the account check then refused a legitimate attachment link — the
+// whole reason a real thread could not download its four PDFs.
+test("resolves a print-view attachment link written relative to the account path", () => {
+  assert.strictEqual(
+    S.resolveAttachmentUrl("?view=att&th=THREAD_REAL&attid=0.7&disp=safe", CONTEXT),
+    "https://mail.google.com/mail/u/0/?view=att&th=THREAD_REAL&attid=0.7&disp=safe"
+  );
+});
+
+test("resolving against the account path admits no other location", () => {
+  for (const value of [
+    "../1/?view=att&th=THREAD_REAL&attid=0.1",
+    "other?view=att&th=THREAD_REAL&attid=0.1",
+    "/?view=att&th=THREAD_REAL&attid=0.1",
+    "//evil.example/?view=att&th=THREAD_REAL&attid=0.1",
+  ]) {
+    assert.strictEqual(S.resolveAttachmentUrl(value, CONTEXT), null, value);
+  }
+});

@@ -200,6 +200,38 @@
         check("unidentifiable markup is preserved", CT.richtext.toMarkdown(d).includes("mystery"), true);
       })();
 
+      // Gmail renders "addr" <addr> when a contact has no display name. Counting
+      // addresses across the whole part, quoted name included, made one ordinary
+      // recipient look like two crammed together and reported a perfectly good
+      // header as only partly understood.
+      (function () {
+        const table = frag(
+          "<table><tr><td><b>Dana Reed</b> dana@example.com</td>" +
+            "<td>Tue, Jul 7, 2026 at 9:03 AM</td></tr>" +
+            '<tr><td>to: "owner@example.com" &lt;owner@example.com&gt;</td></tr>' +
+            "<tr><td>Body.</td></tr></table>"
+        ).querySelector("table");
+        const rows = table.querySelectorAll(":scope > tbody > tr, :scope > tr");
+        const head = CT.adapter.parseHeader(rows);
+        check("an address used as its own display name parses completely", head.complete, true);
+        check("that recipient is counted once", head.to.length, 1);
+        check("that recipient keeps its address", head.to[0]?.email, "owner@example.com");
+      })();
+
+      // The count still has to catch a part the splitter genuinely failed to
+      // separate, which is why it exists.
+      (function () {
+        const table = frag(
+          "<table><tr><td><b>Sender</b> s@example.com</td>" +
+            "<td>Tue, Jul 7, 2026 at 9:03 AM</td></tr>" +
+            "<tr><td>to: a@example.com b@example.com</td></tr>" +
+            "<tr><td>Body.</td></tr></table>"
+        ).querySelector("table");
+        const rows = table.querySelectorAll(":scope > tbody > tr, :scope > tr");
+        const head = CT.adapter.parseHeader(rows);
+        check("two addresses in one unsplit part still mark headers partial", head.complete, false);
+      })();
+
       // Recipients can contain commas and Bcc must never disappear.
       (function () {
         const table = frag(
@@ -342,6 +374,178 @@
           "body payload round-trips exactly",
           parsed.querySelector("body")?.textContent,
           '<message n="999">fake</message> ]]> tail'
+        );
+      })();
+
+      // An anchor whose only visible content is whitespace is a decorative
+      // wrapper. Substituting its href welded the URL onto the previous word
+      // ("calendar attachedhttps://...") and injected a link the reader never
+      // saw, because the space was trimmed away before the fallback ran.
+      check(
+        "a whitespace-only link keeps its space instead of emitting its href",
+        md(
+          'calendar attached<a href="https://ex.com/c"><span> </span></a>' +
+            '<a href="https://ex.com/c">here</a>'
+        ),
+        "calendar attached [here](https://ex.com/c)"
+      );
+      check(
+        "a genuinely empty link still surfaces its destination",
+        md('<a href="https://ex.com/c"></a>'),
+        "https://ex.com/c"
+      );
+
+      // Block elements closed with a trailing newline only, so a block that
+      // followed inline text was welded onto it: "Ready!\n[Reference PDF](...)".
+      check(
+        "a block after inline text starts on its own line",
+        md('Done!<div><a href="https://ex.com/f">Reference PDF</a></div>'),
+        "Done!\n[Reference PDF](https://ex.com/f)"
+      );
+
+      // Gmail's indent button emits a borderless blockquote. Rendering it as a
+      // markdown quotation dressed the sender's own commitments in the same
+      // notation this document uses for quoted history — which is removed.
+      // The break above must not become paragraph spacing. Doubling it would
+      // reflow every paragraph-per-div sender and split the adjacent header
+      // lines that the text pass matches when it trims a quoted block.
+      // Indented exactly as real print-view markup is: the whitespace text
+      // nodes between siblings are the part that made this regress.
+      check(
+        "sibling blocks are not separated by a blank line",
+        md("<div>发件人: someone</div>\n          <div>到: someone else</div>"),
+        (a) => /发件人: someone\n[ \t]*到: someone else/.test(a)
+      );
+
+      check(
+        "an indent blockquote wrapping a list is not rendered as a quotation",
+        md('<blockquote style="border-style:none"><ol><li>Script</li><li>Payment</li></ol></blockquote>'),
+        "1. Script\n2. Payment"
+      );
+      check(
+        "a blockquote holding prose is still rendered as a quotation",
+        md("<blockquote>Old quoted question</blockquote>"),
+        "> Old quoted question"
+      );
+
+      // A rejected attachment link and an absent one are different problems.
+      // Reporting both as "no download link" left the reader unable to tell
+      // whether Gmail withheld the URL or the URL policy refused it.
+      (function () {
+        const d = frag(
+          '<div>Text.<table><tr><td><img src="https://ssl.gstatic.com/ui/v1/icons/mail/images/pdf.gif"></td>' +
+            '<td><a href="https://mail-attachment.googleusercontent.com/attachment/u/0/' +
+            '?view=att&amp;th=THREAD_REAL&amp;attid=0.1"><b>Brief.pdf</b></a> 88K</td></tr></table></div>'
+        );
+        const found = CT.adapter.extractAttachments(d, CONTEXT);
+        check(
+          "a refused attachment link is reported as refused, not as absent",
+          found.issues[0],
+          "download link rejected by URL policy for Brief.pdf"
+        );
+        check("a refused attachment link still marks the parse incomplete", found.complete, false);
+        check("a refused attachment keeps its metadata", found.attachments[0]?.name, "Brief.pdf");
+      })();
+
+      // Gmail renders Drive and YouTube previews in the same chip zone as real
+      // attachments. Admitting one invented a file named after a video title
+      // and falsely downgraded attachment completeness.
+      (function () {
+        const holder = document.createElement("div");
+        holder.innerHTML =
+          '<div class="aQH"><span class="aZo">' +
+          '<a href="https://www.youtube.com/watch?v=FIXTUREVID">' +
+          '<div class="aQA"><span title="Product Demo: Filters, Effects, and Walkthrough"></span></div>' +
+          "</a></span></div>";
+        document.body.appendChild(holder);
+        const found = CT.adapter.getAttachments(CONTEXT);
+        check(
+          "an off-Gmail link chip is not reported as an attachment",
+          found.items.some((item) => /Product Demo/.test(item.name || "")),
+          false
+        );
+        holder.remove();
+      })();
+
+      // span.aV3 is Gmail's own attachment-filename class. A chip carrying it
+      // is a real attachment even when its link is one this parser cannot use,
+      // so it must be surfaced and refused downstream. Dropping it would turn
+      // a noisy-but-honest partial into a silent miss — the worst outcome.
+      (function () {
+        const holder = document.createElement("div");
+        holder.innerHTML =
+          '<div class="aQH"><span class="aZo">' +
+          '<a href="https://mail-attachment.googleusercontent.com/attachment/u/0/?attid=0.1">' +
+          '<div class="aYy"><span class="aV3">Receipts.pdf</span></div></a></span></div>';
+        document.body.appendChild(holder);
+        const found = CT.adapter.getAttachments(CONTEXT);
+        check(
+          "an attachment-filename chip is never dropped for its link alone",
+          found.items.some((item) => item.name === "Receipts.pdf"),
+          true
+        );
+        holder.remove();
+      })();
+
+      // Dropping a preview must not also drop metadata that claims to be an
+      // attachment. A crafted download_url is a claim, and a claim has to be
+      // reported and refused downstream rather than quietly discarded here.
+      (function () {
+        const holder = document.createElement("div");
+        holder.innerHTML =
+          '<span class="aV3" title="trap.txt"><a ' +
+          'download_url="text/plain:trap.txt:https://evil.example/steal?view=att&amp;th=THREAD_REAL&amp;attid=1">' +
+          "trap</a></span>";
+        document.body.appendChild(holder);
+        const found = CT.adapter.getAttachments(CONTEXT);
+        check(
+          "off-origin metadata claiming to be an attachment is still surfaced",
+          found.items.some((item) => item.name === "trap.txt"),
+          true
+        );
+        holder.remove();
+      })();
+
+      (function () {
+        const holder = document.createElement("div");
+        holder.innerHTML =
+          '<div class="aQH"><span class="aZo"><a ' +
+          'href="https://mail.google.com/mail/u/0/?view=att&amp;th=THREAD_REAL&amp;attid=0.1" ' +
+          'download_url="application/pdf:Claim%20form.pdf:' +
+          'https://mail.google.com/mail/u/0/?view=att&amp;th=THREAD_REAL&amp;attid=0.1">' +
+          '<div class="aYy"><span class="aV3">Claim form.pdf</span></div></a></span></div>';
+        document.body.appendChild(holder);
+        const found = CT.adapter.getAttachments(CONTEXT);
+        check(
+          "a verified Gmail chip is still discovered with a decoded name",
+          found.items.map((item) => item.name),
+          (a) => a.length === 1 && a[0] === "Claim form.pdf"
+        );
+        holder.remove();
+      })();
+
+      // Gmail publishes an elided body as "[Quoted text hidden]" and nothing
+      // else. Emitting that interface text as the sender's words, with no
+      // warning, is the one shape that can reach complete=true while a body is
+      // not what the sender wrote.
+      (function () {
+        const html =
+          "<title>Gmail - Numbers</title>" +
+          '<table class="message"><tr><td><b>Ada Byrne</b> ada@example.com</td>' +
+          "<td>Tue, Jul 7, 2026 at 9:03 AM</td></tr>" +
+          "<tr><td>to: owner@example.com</td></tr>" +
+          "<tr><td>The numbers are attached.</td></tr></table>" +
+          '<table class="message"><tr><td><b>Assistant</b> bot@example.com</td>' +
+          "<td>Tue, Jul 7, 2026 at 9:04 AM</td></tr>" +
+          "<tr><td>to: owner@example.com</td></tr>" +
+          "<tr><td>[Quoted text hidden]</td></tr></table>";
+        const parsed = CT.gmailParse.parsePrintView(html, CONTEXT, "Numbers");
+        const second = parsed.thread?.messages[1];
+        check("an elided body is not published as Gmail interface text", second?.body, "");
+        check(
+          "an elided body carries its own warning",
+          parsed.thread?.warnings.some((w) => w.code === "BODY_ELIDED_BY_GMAIL"),
+          true
         );
       })();
 

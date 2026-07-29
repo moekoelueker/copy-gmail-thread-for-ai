@@ -225,6 +225,10 @@ Other limits:
 - the output does not identify which participant owns the mailbox;
 - quote and signature removal is conservative: some noise may remain so that
   ambiguous inline replies are not deleted;
+- Gmail sometimes elides a body it considers already shown, publishing only its
+  own placeholder. Such a message is reported with an empty body and a
+  `BODY_ELIDED_BY_GMAIL` warning naming it, because the content never reached
+  the print view and Gmail's interface text is not what the sender wrote;
 - visible-page fallback can only see expanded content and is always marked
   partial;
 - real Gmail behavior, themes, shortcut registration, and download preferences
@@ -237,8 +241,8 @@ dependency for browser tests.
 
 ```bash
 npm install
-npm test                 # 84 pure Node unit tests
-npm run test:browser     # 61 DOM conversion and parser tests in Chromium
+npm test                 # 93 pure Node unit tests
+npm run test:browser     # 80 DOM conversion and parser tests in Chromium
 npm run test:e2e         # 35 end-to-end tests driving the installed extension
 npm run test:all         # all of the above
 npm run package          # build a release archive of runtime files only

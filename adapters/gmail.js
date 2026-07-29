@@ -363,6 +363,28 @@
   // two or three times, so discovery is collapsed to one candidate per chip.
   const CHIP_SELECTOR = "span.aV3, div.aQA span[title], [download_url]";
 
+  // Gmail renders Drive files, YouTube videos and other link previews in the
+  // same chip zone as real attachments. A preview carries no download_url and
+  // points off-origin; admitting one invented a file named after a video title
+  // and falsely downgraded attachment completeness for the whole thread.
+  //
+  // The exclusion is deliberately narrow, because a wrongly dropped attachment
+  // is a silent miss and that is worse than the noise it removes. A candidate
+  // survives if it makes any attachment claim at all: a download_url (which
+  // includes metadata a sender crafted — a claim must be reported and refused
+  // downstream, not discarded here), Gmail's own span.aV3 filename class, or a
+  // link that points at Gmail. A same-origin chip is therefore kept even when
+  // the stricter URL policy later rejects it, so a genuine refusal stays
+  // visible. Only a candidate claiming nothing is discarded.
+  const FILENAME_CHIP = "span.aV3";
+  function pointsAtGmail(value) {
+    try {
+      return new URL(String(value || ""), S.GMAIL_ORIGIN).origin === S.GMAIL_ORIGIN;
+    } catch (_) {
+      return false;
+    }
+  }
+
   function getAttachments(thread) {
     const context = {
       threadId: thread?.threadId,
@@ -387,6 +409,11 @@
       const downloadUrl = carrier?.getAttribute("download_url") || null;
       const parsed = downloadUrl ? AT.parseDownloadUrl(downloadUrl) : null;
       const href = carrier?.getAttribute("href") || parsed?.url || null;
+      const claimsAttachment =
+        Boolean(downloadUrl) ||
+        Boolean(element.matches?.(FILENAME_CHIP)) ||
+        Boolean(element.querySelector?.(FILENAME_CHIP));
+      if (!claimsAttachment && href && !pointsAtGmail(href)) continue;
       const name = (
         parsed?.name ||
         element.getAttribute("title") ||
