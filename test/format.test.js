@@ -248,3 +248,27 @@ test("the capture timezone is recorded so a derived date can be audited", () => 
   // Absent when unknown: never invent one.
   assert.ok(!F.build({ subject: "x", messages: [] }).includes("<capture_timezone>"));
 });
+
+// The first sighting of an address can be a bare header with no display name.
+// Keeping that record meant the participant list showed an address where later
+// messages carried the person's name.
+test("a participant adopts the display name a later message supplies", () => {
+  const out = F.build(
+    thread({
+      messages: [
+        msg({
+          n: 1,
+          from: { name: "", email: "jane@acme.com" },
+          to: [{ name: "", email: "bea@acme.com" }],
+        }),
+        msg({
+          n: 2,
+          from: { name: "Bea Ray", email: "bea@acme.com" },
+          to: [{ name: "Jane Doe", email: "jane@acme.com" }],
+        }),
+      ],
+    })
+  );
+  assert.ok(out.includes('<participant name="Bea Ray" email="bea@acme.com"/>'), out);
+  assert.ok(out.includes('<participant name="Jane Doe" email="jane@acme.com"/>'), out);
+});

@@ -59,7 +59,14 @@
     for (const part of parts) {
       const raw = part.trim();
       if (!raw) continue;
-      const emailCount = (raw.match(
+      // Count addresses outside the quoted display name only. Gmail writes
+      // "someone@example.com" <someone@example.com> whenever a contact has no
+      // name of its own, and counting inside the quotes read that single
+      // recipient as two addresses crammed into one unsplit part — marking
+      // ordinary headers partial. The check still catches the case it exists
+      // for, because a genuinely unsplit list is not inside quotes.
+      const unquoted = raw.replace(/"(?:[^"\\]|\\.)*"/g, "");
+      const emailCount = (unquoted.match(
         /[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9-]+(?:\.[A-Z0-9-]+)+/gi
       ) || []).length;
       const parsed = parseAddress(raw);
@@ -145,7 +152,9 @@
       }
       labeled.push(line);
       const list = parseAddressList(parsed.value);
-      if (!list.complete || !list.items.length) recipientParsingComplete = false;
+      if (!list.complete || !list.items.length) {
+        recipientParsingComplete = false;
+      }
       recipients[parsed.key].push(...list.items);
     }
 
@@ -216,12 +225,22 @@
   function extractAttachments(scope, context) {
     const attachments = [];
     const handled = new Set();
+    const refused = new Set();
     const issues = [];
 
     for (const anchor of Array.from(scope.querySelectorAll("a[href]"))) {
       const href = anchor.getAttribute("href") || "";
       const url = S.resolveAttachmentUrl(href, context);
-      if (!url) continue;
+      if (!url) {
+        // "Gmail gave no link" and "we refused Gmail's link" are different
+        // problems with different answers, and reporting both as the former
+        // left no way to tell them apart. Only links inside an attachment
+        // container count, so an ordinary body link — including one a sender
+        // crafted to look like an attachment — cannot manufacture this notice.
+        const container = attachmentContainer(anchor, scope);
+        if (container) refused.add(container);
+        continue;
+      }
       const name = attachmentName(anchor);
       if (!name) {
         issues.push("attachment link without a filename");
@@ -257,7 +276,11 @@
         url: null,
         source: "print-view",
       });
-      issues.push(`no download link for ${name}`);
+      issues.push(
+        container && refused.has(container)
+          ? `download link rejected by URL policy for ${name}`
+          : `no download link for ${name}`
+      );
       if (container) container.remove();
     }
 
@@ -329,6 +352,14 @@
       const rendered = RT.toMarkdown(bodyCell);
       const cleaned = CL.trimQuotedText(rendered);
       if (cleaned.trimmed) quotedTrimmed = true;
+      if (cleaned.elided) {
+        warnings.push({
+          code: "BODY_ELIDED_BY_GMAIL",
+          message:
+            `Message ${n}: Gmail rendered this body as an elision placeholder, ` +
+            "so its content was never in the print view and is not reported here.",
+        });
+      }
 
       messages.push({
         n,

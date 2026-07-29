@@ -172,3 +172,21 @@ test("output does not grow with quote depth", () => {
     `depth changed output size: ${shallow} vs ${deep}`
   );
 });
+
+// Gmail renders a body it has elided as "[Quoted text hidden]" and nothing
+// else. Stripping that placeholder empties the body, and the never-empty guard
+// used to restore it, so Gmail's own interface text was published as the
+// sender's words with trimmed reported as false.
+test("a body that is only a Gmail elision placeholder is emptied and flagged", () => {
+  const got = C.trimQuotedText("[Quoted text hidden]");
+  assert.strictEqual(got.text, "");
+  assert.strictEqual(got.trimmed, true);
+  assert.strictEqual(got.elided, true);
+});
+
+test("heuristic trimming that would empty a body still restores the original", () => {
+  const got = C.trimQuotedText("Thanks,");
+  assert.strictEqual(got.text, "Thanks,");
+  assert.strictEqual(got.trimmed, false);
+  assert.ok(!got.elided);
+});
