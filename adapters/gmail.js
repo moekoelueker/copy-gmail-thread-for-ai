@@ -314,7 +314,17 @@
 
         const parsed = P.parsePrintView(html, identity, identity.subject);
         if (parsed.mismatch) {
-          console.warn("[copy-gmail-thread] refused a print-view subject mismatch");
+          // Name both sides. This refusal is the one failure a user cannot act
+          // on or report usefully without knowing what did not match, and its
+          // causes — a decorated tab title, a heading carrying more than the
+          // subject, Gmail genuinely serving another thread — are
+          // indistinguishable from the message alone.
+          console.warn(
+            "[copy-gmail-thread] refused a print-view subject mismatch.\n" +
+              `  print view title: ${JSON.stringify(parsed.printSubject)}\n` +
+              `  open thread subject: ${JSON.stringify(identity.subject)}\n` +
+              "  Please report both lines: https://github.com/moekoelueker/copy-gmail-thread-for-ai/issues"
+          );
           return { ok: false, error: ERR.WRONG_THREAD };
         }
         if (parsed.thread) {

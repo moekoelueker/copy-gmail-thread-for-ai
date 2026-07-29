@@ -191,3 +191,45 @@ test("Gmail interface icons are recognised by origin, not by path", () => {
   assert.strictEqual(T.isGmailUiAsset("https://ssl.gstatic.com/images/branding/x.png"), true);
   assert.strictEqual(T.isGmailUiIcon("https://ssl.gstatic.com/images/branding/x.png"), false);
 });
+
+// The print view's <title> is the only evidence that Gmail returned the
+// conversation that was asked for, and its shape is not universal. A second
+// signed-in account adds the address; Workspace brands it with the domain
+// instead of "Gmail". Assuming one shape refused every thread on those
+// profiles with "Gmail returned a different conversation".
+test("a print-view title is recognized whatever the profile decorates it with", () => {
+  const subject = "Q3 Budget Review";
+  for (const title of [
+    "Gmail - Q3 Budget Review",
+    "Q3 Budget Review - Gmail",
+    "Gmail — Q3 Budget Review",
+    // A second signed-in account.
+    "Q3 Budget Review - someone@example.com - Gmail",
+    // Google Workspace brands the tab with the domain.
+    "Q3 Budget Review - Acme Mail",
+    "Q3 Budget Review - Acme Corp Mail",
+    // No decoration at all.
+    "Q3 Budget Review",
+  ]) {
+    assert.strictEqual(T.titleMatchesSubject(title, subject), true, title);
+  }
+});
+
+test("a subject containing a dash survives title decoration stripping", () => {
+  assert.strictEqual(T.titleMatchesSubject("Gmail - Q3 - Final Draft", "Q3 - Final Draft"), true);
+  assert.strictEqual(
+    T.titleMatchesSubject("Q3 - Final Draft - someone@example.com - Gmail", "Q3 - Final Draft"),
+    true
+  );
+});
+
+test("thread identity still fails closed on a genuinely different conversation", () => {
+  // Substring and prefix matches must not pass: these are different threads.
+  assert.strictEqual(T.titleMatchesSubject("Gmail - Budget", "Budget Q3"), false);
+  assert.strictEqual(T.titleMatchesSubject("Gmail - Budget Q3", "Budget"), false);
+  assert.strictEqual(T.titleMatchesSubject("Gmail - Something else entirely", "Budget"), false);
+  // A missing subject on either side cannot authorize a copy.
+  assert.strictEqual(T.titleMatchesSubject("", "Budget"), false);
+  assert.strictEqual(T.titleMatchesSubject("Gmail - Budget", ""), false);
+  assert.strictEqual(T.titleMatchesSubject("Gmail", "Gmail"), true);
+});

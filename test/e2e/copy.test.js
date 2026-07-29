@@ -390,6 +390,43 @@ test("the manifest reports the name Chrome resolved, not the one requested", asy
   }
 });
 
+// Reported from a fresh Chrome profile: every thread refused with "Gmail
+// returned a different conversation". The tab title is decorated per profile,
+// not per thread — a second signed-in account inserts the address, Workspace
+// brands the tail with the domain — and the parser understood only
+// "Gmail - <subject>", so the identity check refused the user's own thread.
+test("a title decorated by the profile still copies the open thread", async () => {
+  const original = fixture("printview-negotiation.html");
+  const subject = "Subject: Paid Collaboration Opportunity with Northwind";
+  for (const title of [
+    `${subject} - someone@example.com - Gmail`,
+    `${subject} - Acme Mail`,
+    subject,
+  ]) {
+    H.state.printView = original.replace(
+      /<title>[^<]*<\/title>/,
+      `<title>${title}</title>`
+    );
+    await H.openThread();
+    const out = await H.copyViaButton();
+    assert.ok(
+      out.startsWith('<email_thread format_version="3">'),
+      `refused a decorated title ${JSON.stringify(title)}: ${out.slice(0, 120)}`
+    );
+    assert.ok(out.includes("<messages>3</messages>"), title);
+  }
+});
+
+test("a title naming another conversation is still refused", async () => {
+  H.state.printView = fixture("printview-negotiation.html").replace(
+    /<title>[^<]*<\/title>/,
+    "<title>Gmail - Something else entirely</title>"
+  );
+  await H.openThread();
+  await H.copyViaButton();
+  assert.match(await H.toastText(), /different conversation/i);
+});
+
 test("crafted off-origin attachment metadata causes no external request", async () => {
   H.state.page = fixture("gmail-thread.html").replace(
     '<div class="a3s">Visible copy of the first message only.</div>',
