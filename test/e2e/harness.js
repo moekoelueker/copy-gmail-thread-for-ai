@@ -200,7 +200,12 @@ async function start({ extensionRoot = ROOT } = {}) {
   }
 
   async function waitForDownloads(count) {
-    const deadline = Date.now() + 15_000;
+    // node --test runs the e2e files concurrently, so several Chrome instances
+    // and Playwright's download interception compete for the same machine. At
+    // 15s this tripped roughly one run in three once a fourth capture joined
+    // the suite, with no product change involved. It bounds a hang; it is not
+    // a latency assertion.
+    const deadline = Date.now() + 45_000;
     while (Date.now() < deadline) {
       const items = await downloads();
       if (items.length >= count && items.slice(0, count).every((item) => item.state === "complete")) {
@@ -224,6 +229,7 @@ async function start({ extensionRoot = ROOT } = {}) {
     page,
     state,
     fixture,
+    worker,
     openThread,
     copyViaButton,
     copyViaCommand,

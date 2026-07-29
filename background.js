@@ -1,8 +1,9 @@
 // Service worker: keyboard command routing and the privileged download boundary.
 
-importScripts("lib/security.js");
+importScripts("lib/security.js", "lib/downloads.js");
 
 const S = globalThis.CT.security;
+const D = globalThis.CT.downloads;
 const GMAIL = /^https:\/\/mail\.google\.com\//;
 
 async function activeGmailTab() {
@@ -25,20 +26,6 @@ chrome.commands.onCommand.addListener((command) => {
   if (command === "copy-thread") dispatch("copy");
   else if (command === "save-thread") dispatch("save");
 });
-
-function respondWithDownload(id, requestedPath, sendResponse) {
-  chrome.downloads.search({ id }, (items) => {
-    // Issuing a download is not the same as completing it. Report "started"
-    // truthfully and use Chrome's resolved basename when it is already known.
-    const actual = items && items[0] ? items[0].filename : "";
-    sendResponse({
-      ok: true,
-      id,
-      path: S.reportedDownloadPath(actual, requestedPath),
-      status: "download started",
-    });
-  });
-}
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg?.type !== "download") return false;
@@ -64,7 +51,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         sendResponse({ ok: false, error: "download failed to start" });
         return;
       }
-      respondWithDownload(id, path, sendResponse);
+      // Accepting the request is not writing the file. settle() waits for the
+      // name Chrome actually chose, so the reported path survives uniquify.
+      D.settle(chrome.downloads, id, path).then(sendResponse);
     }
   );
   return true;
