@@ -48,6 +48,16 @@ requirement if that decision is revisited.
 - Binary attachments are delivered, not parsed; there is no OCR.
 - Chrome download completion is not known at clipboard-build time, so output
   truthfully says `download started`.
+- The e2e save-mode tests fail intermittently, roughly one run in three on a
+  loaded machine: a download never reaches `complete` and `waitForDownloads`
+  times out. It is the harness, not the extension — it reproduces on the
+  worker that predates `lib/downloads.js`, and raising the deadline to 60s
+  does not help, so the download is stuck rather than slow. Playwright's
+  download interception (`acceptDownloads`, which renames every file to a UUID
+  under `playwright-artifacts`) is the prime suspect and has not been proven.
+  Adding a fourth capture to the suite made it surface more often. The
+  timeout now reports the download states it saw, which is where a diagnosis
+  should start.
 - `date` is derived by reinterpreting Gmail's offset-less timestamp in the
   browser's timezone, which `<capture_timezone>` records. `local` is the
   authoritative rendering.
