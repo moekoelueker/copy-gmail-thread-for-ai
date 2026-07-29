@@ -1,10 +1,22 @@
 // Real-extension browser harness against a deterministic stand-in Gmail.
 // No real mailbox, Google credential, or external network request is used.
+//
+// Each test file here drives a full Chrome, so package.json runs them with
+// --test-concurrency=1: run concurrently, several browsers and Playwright's
+// download interception compete for one machine, and the waits below start
+// reporting load instead of behavior. Serial costs about half a minute.
 
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { chromium } = require("playwright");
+
+// Every wait here bounds a hang; none of them asserts latency. A capture takes
+// about two seconds. Raising this to 60s was tried against the intermittent
+// download failure noted in docs/OPEN-ITEMS.md and changed nothing — that
+// download never completes rather than completing slowly — so the shorter
+// deadline stands and the suite fails faster when it does fail.
+const WAIT_MS = 15_000;
 
 const ROOT = path.join(__dirname, "..", "..");
 const FIXTURES = path.join(__dirname, "fixtures");
@@ -130,7 +142,7 @@ async function start({ extensionRoot = ROOT } = {}) {
   async function worker() {
     let [serviceWorker] = context.serviceWorkers();
     if (!serviceWorker) {
-      serviceWorker = await context.waitForEvent("serviceworker", { timeout: 15_000 });
+      serviceWorker = await context.waitForEvent("serviceworker", { timeout: WAIT_MS });
     }
     return serviceWorker;
   }
@@ -142,7 +154,7 @@ async function start({ extensionRoot = ROOT } = {}) {
     // previous scenario's fixture in place. Force a fresh document each time.
     await page.goto("about:blank");
     await page.goto("https://mail.google.com/mail/u/0/#all/THREAD_REAL");
-    await page.waitForSelector(".ctl-actions", { timeout: 15_000 });
+    await page.waitForSelector(".ctl-actions", { timeout: WAIT_MS });
   }
 
   async function resetClipboard() {
@@ -155,7 +167,7 @@ async function start({ extensionRoot = ROOT } = {}) {
     await page.click(selector);
     await page.waitForFunction(
       () => Array.from(document.querySelectorAll(".ctl-actions button")).every((b) => !b.disabled),
-      { timeout: 15_000 }
+      { timeout: WAIT_MS }
     );
     return page.evaluate(() => navigator.clipboard.readText());
   }
@@ -172,11 +184,11 @@ async function start({ extensionRoot = ROOT } = {}) {
         document.querySelector(".ctl-toast")?.textContent?.match(
           /Copied|couldn't|expired|different|open an email/i
         ),
-      { timeout: 15_000 }
+      { timeout: WAIT_MS }
     );
     await page.waitForFunction(
       () => Array.from(document.querySelectorAll(".ctl-actions button")).every((b) => !b.disabled),
-      { timeout: 15_000 }
+      { timeout: WAIT_MS }
     );
     return page.evaluate(() => navigator.clipboard.readText());
   }
@@ -195,17 +207,12 @@ async function start({ extensionRoot = ROOT } = {}) {
     // Reload while the Gmail tab is active so popup.js sees the same state a
     // real toolbar popup would see.
     await popup.reload();
-    await popup.waitForSelector("#onGmail:not([hidden])", { timeout: 15_000 });
+    await popup.waitForSelector("#onGmail:not([hidden])", { timeout: WAIT_MS });
     return popup;
   }
 
   async function waitForDownloads(count) {
-    // node --test runs the e2e files concurrently, so several Chrome instances
-    // and Playwright's download interception compete for the same machine. At
-    // 15s this tripped roughly one run in three once a fourth capture joined
-    // the suite, with no product change involved. It bounds a hang; it is not
-    // a latency assertion.
-    const deadline = Date.now() + 45_000;
+    const deadline = Date.now() + WAIT_MS;
     while (Date.now() < deadline) {
       const items = await downloads();
       if (items.length >= count && items.slice(0, count).every((item) => item.state === "complete")) {
@@ -213,7 +220,16 @@ async function start({ extensionRoot = ROOT } = {}) {
       }
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
-    throw new Error(`timed out waiting for ${count} completed downloads`);
+    // Report what was actually seen. "timed out waiting for 2" cannot
+    // distinguish a download that never started from one stuck in_progress
+    // from one Chrome interrupted, and those have nothing to do with
+    // each other.
+    const seen = (await downloads()).map(
+      (item) => `${item.id}:${item.state}${item.error ? `(${item.error})` : ""}`
+    );
+    throw new Error(
+      `timed out waiting for ${count} completed downloads; saw [${seen.join(", ")}]`
+    );
   }
 
   const toastText = () =>
