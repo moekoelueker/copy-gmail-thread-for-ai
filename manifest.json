@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Copy Gmail Thread for AI",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "description": "Copy an open Gmail thread as structured text with completeness warnings. No OAuth, server, analytics, or account.",
   "permissions": [
     "downloads",
