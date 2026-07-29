@@ -1,5 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert");
+const fs = require("node:fs");
 const { start, fixture } = require("./harness");
 
 let H;
@@ -285,6 +286,20 @@ test("save mode starts and completes every attachment download", async () => {
   assert.ok(
     newItems.every((item) => item.url.startsWith("https://mail.google.com/mail/u/0/"))
   );
+
+  // "complete" alone is a weak claim, and it hid a real problem: these
+  // downloads bypass Playwright's routing, so they used to be served by the
+  // real mail.google.com and land 853 KB of Google's sign-in HTML. Assert the
+  // bytes, which only the stand-in can produce.
+  assert.deepStrictEqual(
+    newItems.map((item) => fs.readFileSync(item.filename, "utf8")).sort(),
+    ["%PDF-1.4 deterministic test file", "quarter,revenue\nQ3,1200000\n"].sort()
+  );
+  assert.ok(
+    H.state.standInRequests.some((url) => url.includes("view=att")),
+    "no attachment download reached the stand-in server"
+  );
+
   assert.strictEqual((out.match(/status="download started"/g) || []).length, 2);
   assert.ok(out.includes("<download_path_base>Chrome download directory</download_path_base>"));
   assert.ok(
