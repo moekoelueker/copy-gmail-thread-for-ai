@@ -1,6 +1,6 @@
 {
   "name": "copy-gmail-thread-for-ai",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "private": true,
   "description": "Chrome extension: copy an open Gmail thread as XML with Markdown bodies and completeness signals.",
   "scripts": {
