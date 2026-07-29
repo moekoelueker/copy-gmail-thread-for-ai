@@ -40,6 +40,24 @@ test("the release archive carries every file the manifest references", () => {
   assert.ok(files.includes("PRIVACY.md"));
 });
 
+// The manifest names one service-worker file; everything else it runs arrives
+// through importScripts, which the manifest cannot declare. lib/security.js
+// survived only because it is a content script too, so a service-worker-only
+// module would have been dropped from the archive and left the worker throwing
+// on install — while an unpacked load from the repository kept working.
+test("the release archive carries what the service worker imports", () => {
+  const files = runtimeFiles();
+  const worker = fs.readFileSync(path.join(ROOT, manifest.background.service_worker), "utf8");
+  const imported = Array.from(worker.matchAll(/importScripts\(([^)]*)\)/g)).flatMap((call) =>
+    Array.from(call[1].matchAll(/["']([^"']+)["']/g), (m) => m[1])
+  );
+
+  assert.ok(imported.length, "no importScripts call found to verify");
+  for (const file of imported) {
+    assert.ok(files.includes(file), `release archive would omit ${file}, imported by the worker`);
+  }
+});
+
 test("the release archive carries nothing else", () => {
   // "Download ZIP" ships the whole repository. This is the guard that a release
   // build cannot: tests, fixtures, tooling, docs, or a raw capture left in the

@@ -28,6 +28,26 @@ function runtimeFiles(root = ROOT) {
   };
 
   add(manifest.background?.service_worker);
+  // The manifest names one service-worker file; every other module the worker
+  // runs arrives through importScripts, which the manifest cannot express.
+  // Follow it transitively, or the archive ships a worker that throws on
+  // install while an unpacked load from the repository keeps working.
+  const pending = [manifest.background?.service_worker].filter(Boolean);
+  const scanned = new Set();
+  while (pending.length) {
+    const file = pending.pop();
+    if (scanned.has(file)) continue;
+    scanned.add(file);
+    const full = path.join(root, file);
+    if (!fs.existsSync(full)) continue;
+    for (const call of fs.readFileSync(full, "utf8").matchAll(/importScripts\(([^)]*)\)/g)) {
+      for (const [, imported] of call[1].matchAll(/["']([^"']+)["']/g)) {
+        add(imported);
+        pending.push(imported);
+      }
+    }
+  }
+
   add(manifest.action?.default_popup);
   for (const script of manifest.content_scripts || []) {
     (script.js || []).forEach(add);

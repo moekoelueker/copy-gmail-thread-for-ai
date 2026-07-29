@@ -295,6 +295,86 @@ test("save mode starts and completes every attachment download", async () => {
   assert.ok(!out.includes("~/Downloads"));
 });
 
+// Capturing the same thread twice is ordinary: a reply arrives, or the first
+// copy was pasted somewhere it did not survive. Chrome then uniquifies the
+// second write to "name (1).pdf", but the worker reported the path it had
+// asked for, so the second manifest pointed a reader at the first capture's
+// bytes. Identical files hide it; a revised attachment under an unchanged name
+// does not.
+//
+// Real uniquify cannot be observed from here: Playwright's download
+// interception renames every file to a UUID under playwright-artifacts, so
+// Chrome never reports a "gmail-threads/..." name and never has a second file
+// to disambiguate. What this drives instead is everything above that seam —
+// real capture, real content script, real message boundary, real
+// authorizeDownload, real settle() — with only Chrome's filename *reporting*
+// standing in. lib/downloads.test.js covers settle()'s own behavior.
+test("the manifest reports the name Chrome resolved, not the one requested", async () => {
+  const sw = await H.worker();
+  await sw.evaluate(() => {
+    const events = chrome.downloads.onChanged;
+    const real = {
+      download: chrome.downloads.download.bind(chrome.downloads),
+      search: chrome.downloads.search.bind(chrome.downloads),
+      add: events.addListener.bind(events),
+      remove: events.removeListener.bind(events),
+    };
+    globalThis.__restore = () => {
+      chrome.downloads.download = real.download;
+      chrome.downloads.search = real.search;
+      events.addListener = real.add;
+      events.removeListener = real.remove;
+    };
+
+    // Deliberately not forwarded to the real event: Chrome does fire a genuine
+    // delta for these downloads, carrying Playwright's UUID name, and it would
+    // race the simulated one and win.
+    const watching = new Set();
+    events.addListener = (fn) => watching.add(fn);
+    events.removeListener = (fn) => watching.delete(fn);
+
+    const started = new Set();
+    chrome.downloads.download = (options, cb) =>
+      real.download(options, (id) => {
+        started.add(id);
+        cb(id);
+        // Chrome picks the name a moment after accepting the request, and
+        // announces it here. Reporting before this arrives is the bug.
+        setTimeout(() => {
+          const resolved = options.filename.replace(/(\.[^./]+)$/, " (1)$1");
+          for (const fn of Array.from(watching)) {
+            fn({ id, filename: { previous: "", current: `/home/u/Downloads/${resolved}` } });
+          }
+        }, 30);
+      });
+
+    // What a search issued the instant the id arrives really returns.
+    chrome.downloads.search = (query, cb) =>
+      query && started.has(query.id) && cb
+        ? cb([{ id: query.id, state: "in_progress", filename: "" }])
+        : real.search(query, cb);
+  });
+
+  try {
+    await H.openThread();
+    const out = await H.copyViaButton("save");
+    const paths = Array.from(out.matchAll(/ path="([^"]+)"/g), (m) => m[1]);
+
+    assert.strictEqual(paths.length, 2);
+    assert.ok(
+      paths.every((p) => /\(1\)\.[A-Za-z0-9]+$/.test(p)),
+      `manifest kept the requested names instead of the resolved ones: ${paths.join(", ")}`
+    );
+    assert.ok(
+      paths.every((p) => p.startsWith("gmail-threads/")),
+      `path escaped the download root: ${paths.join(", ")}`
+    );
+    assert.strictEqual((out.match(/status="download started"/g) || []).length, 2);
+  } finally {
+    await sw.evaluate(() => globalThis.__restore());
+  }
+});
+
 test("crafted off-origin attachment metadata causes no external request", async () => {
   H.state.page = fixture("gmail-thread.html").replace(
     '<div class="a3s">Visible copy of the first message only.</div>',

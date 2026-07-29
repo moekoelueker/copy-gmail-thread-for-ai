@@ -168,8 +168,12 @@ suffixes. A file declared larger than 25 MB is not started. The clipboard says
 asynchronously.
 
 Chrome may further rename a file when the destination already exists or when
-the user chooses another name in a save prompt. The output reports Chrome’s
-resolved path when available; otherwise it reports the safe requested path.
+the user chooses another name in a save prompt — capturing the same thread
+twice writes `invoice (1).pdf` beside `invoice.pdf`. The output waits for the
+name Chrome resolved and reports that one, so a repeat capture never points at
+an earlier capture’s file. If Chrome never reports a name, the status reads
+`download started (path unverified)` and the path falls back to the safe
+requested path rather than claiming a file that may not exist.
 
 Raw attachment URLs are never placed in the copied document.
 

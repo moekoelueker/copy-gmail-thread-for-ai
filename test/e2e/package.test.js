@@ -53,6 +53,16 @@ test("the built release archive installs and copies a thread", async (t) => {
   assert.ok(out.includes("<complete>true</complete>"));
   assert.ok(out.includes("<attachment_count>2</attachment_count>"));
 
+  // Save mode is the only path that reaches the service worker. A module the
+  // worker importScripts but the archive omits leaves the worker throwing on
+  // install, which copy mode never notices — it never messages the worker.
+  const saved = await H.copyViaButton("save");
+  assert.strictEqual(
+    (saved.match(/status="download started"/g) || []).length,
+    2,
+    "the packaged service worker did not accept downloads"
+  );
+
   const popup = await H.popupForGmail();
   assert.match(await popup.locator(".compact").innerText(), /signed-in Gmail tab/i);
   if (!popup.isClosed()) await popup.close();

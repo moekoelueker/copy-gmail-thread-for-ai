@@ -11,6 +11,7 @@ const root = path.join(__dirname, "..");
 
 require(path.join(root, "lib/text.js"));
 require(path.join(root, "lib/security.js"));
+require(path.join(root, "lib/downloads.js"));
 require(path.join(root, "lib/clean.js"));
 require(path.join(root, "lib/format.js"));
 require(path.join(root, "lib/attachments.js"));
