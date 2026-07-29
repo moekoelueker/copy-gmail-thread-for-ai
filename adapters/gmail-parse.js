@@ -295,11 +295,8 @@
     if (!tables.length) return { empty: true, warnings: [] };
 
     const title = (doc.title || "").trim();
-    const printSubject = /^Gmail\s*[-–—]\s*/iu.test(title)
-      ? title.replace(/^Gmail\s*[-–—]\s*/iu, "").trim()
-      : title.replace(/\s*[-–—]\s*Gmail$/iu, "").trim();
-    if (!T.subjectsMatch(printSubject, openSubject)) {
-      return { mismatch: true, printSubject };
+    if (!T.titleMatchesSubject(title, openSubject)) {
+      return { mismatch: true, printSubject: title };
     }
 
     const messages = [];
