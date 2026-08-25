@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1400" height="560" viewBox="0 0 1400 560" role="img" aria-labelledby="title description">
   <title id="title">Install, copy, and paste a Gmail thread into an LLM</title>
-  <desc id="description">Three evenly spaced product views show the extension in Chrome, its exact controls beside a fictional Gmail thread, and the copied thread pasted into an LLM prompt with Command-V or Control-V.</desc>
+  <desc id="description">Three evenly spaced product views show the extension in Chrome, the Copy thread control beside a fictional sender, and the copied thread pasted into an LLM prompt with Command-V or Control-V.</desc>
 
   <rect width="1400" height="560" fill="#f4f1ea"/>
   <circle cx="1345" cy="4" r="190" fill="#c94735" opacity="0.08"/>
@@ -60,15 +60,18 @@
 
       <circle cx="32" cy="87" r="20" fill="#c94735"/>
       <text x="66" y="77" font-size="15" font-weight="750" fill="#2b2e33">Maya Chen</text>
+      <!-- Crop the actual in-page Copy thread control and place it with the sender. -->
+      <svg x="158" y="61" width="108" height="30" viewBox="126 0 108 30">
+        <image width="372" height="30" href="controls.png"/>
+      </svg>
       <text x="66" y="98" font-size="12" fill="#6f7580">Q3 launch plan · 3 messages</text>
       <rect x="66" y="116" width="235" height="7" rx="3.5" fill="#b7bbc1"/>
       <rect x="66" y="132" width="182" height="7" rx="3.5" fill="#d0d3d7"/>
-
-      <!-- Captured from the actual in-page extension controls -->
-      <image x="0" y="162" width="344" height="28" href="controls.png"/>
+      <rect x="66" y="148" width="218" height="7" rx="3.5" fill="#e0e2e5"/>
+      <rect x="66" y="164" width="144" height="7" rx="3.5" fill="#e8e9eb"/>
     </g>
 
-    <text x="196" y="314" text-anchor="middle" font-size="17" fill="#626873">Use either action beside the conversation.</text>
+    <text x="196" y="314" text-anchor="middle" font-size="17" fill="#626873">Copy the conversation with one click.</text>
   </g>
 
   <!-- 03 · Paste -->
