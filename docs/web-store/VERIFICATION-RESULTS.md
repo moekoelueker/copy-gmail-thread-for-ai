@@ -12,6 +12,39 @@ Verified 25 August 2026 against version 2.2.0.
   Gmail capture.
 - `git diff --check`: passed.
 
+## Live Gmail smoke test
+
+Verified 25 August 2026 on macOS in the Zena Labs Chrome profile against the
+current Gmail interface:
+
+- Version 2.2.0 loaded unpacked and injected its controls into an open Gmail
+  conversation after the tab was reloaded.
+- The in-page disclosure, **Copy thread**, and **Copy + save files** controls
+  rendered beside the subject.
+- **Copy thread** produced a complete format-version-3 document from a
+  single-message, system-generated conversation. The root and closing tags,
+  message count, subject, participant list, sender, sender email, recipient,
+  parsed and displayed timestamps, Markdown body, content-trust marker, Gmail
+  source URL, and all completeness fields were present.
+- The capture reported all three completeness dimensions and overall
+  completeness as `true`, with no capture warnings.
+- The copied output contained no raw Gmail attachment capability URL and no
+  Markdown remote-image embed.
+- **Copy + save files** completed on the same no-attachment conversation,
+  produced the same complete structure, and correctly started no download.
+- The extension popup opened and displayed both actions, the Developer Preview
+  notice, and the privacy, terms, and support links.
+- No in-page copy controls appeared in the inbox when no conversation was open.
+
+No mailbox content, email address, publisher-verification link, or other live
+message data was saved to the repository or included in these results.
+
+This was deliberately a smoke test, not completion of the full manual matrix.
+Still unverified live: a multi-message/collapsed conversation, real text and
+binary attachments, the popup-triggered copy action, global shortcut
+registration, a second Gmail account, dark theme, explicit narrow-layout and
+keyboard-focus passes, failure-mode scenarios, very long threads, and Windows.
+
 ## Package
 
 - File: `copy-gmail-thread-for-ai-2.2.0.zip`
@@ -61,7 +94,9 @@ Verified 25 August 2026 against version 2.2.0.
 
 ## Checks that still require a person or external account
 
-- Live-Gmail manual checklist on the current Chrome/Gmail interface.
+- Remaining live-Gmail cases in `docs/manual-test.md`, including attachments,
+  multiple messages/accounts, popup and shortcut execution, themes, and failure
+  behavior.
 - Windows live pass, or continued disclosure that Windows is unverified.
 - Publisher trader/contact/address/2-step-verification confirmation.
 - Dashboard upload and validation.
