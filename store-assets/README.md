@@ -9,6 +9,10 @@ Ready-to-upload files:
 - `screenshot-3-completeness-1280x800.png`
 - `../icons/icon128.png` — store icon
 
+Additional repository marketing artwork:
+
+- `workflow-install-copy-paste-1400x560.png` — three-step README workflow
+
 Editable SVG sources and local raster inputs are in `src/`. The popup image is
 captured from the actual extension markup and CSS with synthetic state; it does
 not contain a Gmail account or real message data.
@@ -23,4 +27,5 @@ rsvg-convert store-assets/src/marquee-1400x560.svg -o store-assets/marquee-1400x
 rsvg-convert store-assets/src/screenshot-1-overview-1280x800.svg -o store-assets/screenshot-1-overview-1280x800.png
 rsvg-convert store-assets/src/screenshot-2-controls-1280x800.svg -o store-assets/screenshot-2-controls-1280x800.png
 rsvg-convert store-assets/src/screenshot-3-completeness-1280x800.svg -o store-assets/screenshot-3-completeness-1280x800.png
+rsvg-convert store-assets/src/workflow-install-copy-paste-1400x560.svg -o store-assets/workflow-install-copy-paste-1400x560.png
 ```
