@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="440" height="280" viewBox="0 0 440 280">
+  <rect width="440" height="280" fill="#111417"/>
+  <circle cx="412" cy="-5" r="125" fill="#c94735" opacity="0.95"/>
+  <circle cx="390" cy="258" r="78" fill="#f3eee4" opacity="0.08"/>
+  <image x="35" y="36" width="76" height="76" href="icon128.png"/>
+  <text x="132" y="65" font-family="Inter, Arial, sans-serif" font-size="28" font-weight="700" fill="#f7f6f0">Copy Gmail Thread</text>
+  <text x="132" y="98" font-family="Inter, Arial, sans-serif" font-size="28" font-weight="700" fill="#f7f6f0">for AI</text>
+  <text x="35" y="160" font-family="Inter, Arial, sans-serif" font-size="19" fill="#d7d9dc">Structured text. Clear warnings.</text>
+  <rect x="35" y="194" width="278" height="45" rx="22.5" fill="#f7f6f0" opacity="0.10"/>
+  <text x="58" y="223" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="600" fill="#f7f6f0">Local-only · No account · No tracking</text>
+</svg>

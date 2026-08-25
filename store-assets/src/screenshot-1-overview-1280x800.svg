@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="800" viewBox="0 0 1280 800">
+  <rect width="1280" height="800" fill="#f4f1ea"/>
+  <circle cx="1160" cy="60" r="270" fill="#c94735" opacity="0.10"/>
+  <rect x="64" y="64" width="224" height="40" rx="20" fill="#c94735"/>
+  <text x="88" y="90" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="700" fill="#fff">DEVELOPER PREVIEW</text>
+  <text x="64" y="190" font-family="Inter, Arial, sans-serif" font-size="57" font-weight="760" fill="#17191c">Copy a Gmail</text>
+  <text x="64" y="257" font-family="Inter, Arial, sans-serif" font-size="57" font-weight="760" fill="#17191c">conversation.</text>
+  <text x="64" y="324" font-family="Inter, Arial, sans-serif" font-size="57" font-weight="760" fill="#17191c">Keep its structure.</text>
+  <text x="68" y="390" font-family="Inter, Arial, sans-serif" font-size="23" fill="#626873">Message boundaries, people, dates, links,</text>
+  <text x="68" y="424" font-family="Inter, Arial, sans-serif" font-size="23" fill="#626873">tables, attachments, and completeness flags.</text>
+
+  <g font-family="Inter, Arial, sans-serif" font-size="20" fill="#292c31">
+    <circle cx="82" cy="496" r="13" fill="#17191c"/><path d="M75 496l5 5 10-12" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+    <text x="111" y="503">Copies the thread already open in Gmail</text>
+    <circle cx="82" cy="552" r="13" fill="#17191c"/><path d="M75 552l5 5 10-12" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+    <text x="111" y="559">No extension account or Google OAuth</text>
+    <circle cx="82" cy="608" r="13" fill="#17191c"/><path d="M75 608l5 5 10-12" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+    <text x="111" y="615">Processed locally in your browser</text>
+  </g>
+  <text x="66" y="708" font-family="Inter, Arial, sans-serif" font-size="17" fill="#7a7f87">Independent extension · Not affiliated with Google</text>
+
+  <g transform="translate(748 48)">
+    <rect width="468" height="704" rx="34" fill="#17191c" opacity="0.10"/>
+    <rect x="-10" y="-10" width="468" height="704" rx="34" fill="#fff" stroke="#dedbd5" stroke-width="2"/>
+    <image x="0" y="0" width="448" height="666" preserveAspectRatio="xMidYMid meet" href="ui-popup-v2.png"/>
+  </g>
+</svg>

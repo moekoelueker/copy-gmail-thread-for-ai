@@ -367,7 +367,17 @@
     group.setAttribute("role", "group");
     group.setAttribute("aria-label", "Copy Gmail thread");
     group.setAttribute("aria-busy", "false");
+
+    const disclosure = document.createElement("span");
+    disclosure.className = "ctl-data-note";
+    disclosure.textContent = "Reads this thread locally";
+    disclosure.title =
+      "When you choose a copy action, the extension reads this conversation's " +
+      "message text, participant details, links, and attachment information " +
+      "locally to create your output. It does not send or retain that data.";
+
     group.append(
+      disclosure,
       makeAction(
         "Copy thread",
         "ctl-btn-copy",

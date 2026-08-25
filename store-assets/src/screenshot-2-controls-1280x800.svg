@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="800" viewBox="0 0 1280 800">
+  <rect width="1280" height="800" fill="#111417"/>
+  <circle cx="1240" cy="-40" r="300" fill="#c94735" opacity="0.32"/>
+  <text x="64" y="105" font-family="Inter, Arial, sans-serif" font-size="54" font-weight="750" fill="#f7f6f0">Copy from wherever you are.</text>
+  <text x="66" y="153" font-family="Inter, Arial, sans-serif" font-size="22" fill="#b9bec6">Popup, in-page controls, or keyboard shortcuts.</text>
+
+  <g transform="translate(64 210)" font-family="Inter, Arial, sans-serif">
+    <rect width="1152" height="210" rx="28" fill="#fff"/>
+    <circle cx="39" cy="34" r="7" fill="#ff5f57"/><circle cx="63" cy="34" r="7" fill="#febc2e"/><circle cx="87" cy="34" r="7" fill="#28c840"/>
+    <rect x="126" y="22" width="516" height="25" rx="12.5" fill="#eef0f2"/>
+    <text x="149" y="40" font-size="13" fill="#767b84">mail.google.com/mail/u/0/#inbox/conversation</text>
+    <rect x="34" y="78" width="712" height="98" rx="14" fill="#f5f6f8" stroke="#e3e5e8"/>
+    <circle cx="76" cy="112" r="18" fill="#c94735"/>
+    <rect x="111" y="95" width="260" height="14" rx="7" fill="#25282d" opacity="0.78"/>
+    <rect x="111" y="124" width="430" height="11" rx="5.5" fill="#7d838d" opacity="0.50"/>
+    <rect x="111" y="147" width="352" height="11" rx="5.5" fill="#7d838d" opacity="0.36"/>
+    <image x="742" y="101" width="405" height="41" preserveAspectRatio="xMidYMid meet" href="controls.png"/>
+  </g>
+
+  <g transform="translate(64 468)" font-family="Inter, Arial, sans-serif">
+    <g>
+      <rect width="350" height="244" rx="28" fill="#23272c" stroke="#3b4047"/>
+      <text x="30" y="52" font-size="16" font-weight="700" fill="#ff8a76">01 · POPUP</text>
+      <text x="30" y="95" font-size="27" font-weight="700" fill="#fff">One clear click</text>
+      <text x="30" y="132" font-size="17" fill="#b9bec6">Copy text, or copy and save</text>
+      <text x="30" y="159" font-size="17" fill="#b9bec6">verified attachments.</text>
+    </g>
+    <g transform="translate(401)">
+      <rect width="350" height="244" rx="28" fill="#23272c" stroke="#3b4047"/>
+      <text x="30" y="52" font-size="16" font-weight="700" fill="#ff8a76">02 · IN-PAGE</text>
+      <text x="30" y="95" font-size="27" font-weight="700" fill="#fff">Stay in the thread</text>
+      <text x="30" y="132" font-size="17" fill="#b9bec6">Small controls appear alongside</text>
+      <text x="30" y="159" font-size="17" fill="#b9bec6">Gmail’s conversation actions.</text>
+    </g>
+    <g transform="translate(802)">
+      <rect width="350" height="244" rx="28" fill="#23272c" stroke="#3b4047"/>
+      <text x="30" y="52" font-size="16" font-weight="700" fill="#ff8a76">03 · SHORTCUTS</text>
+      <text x="30" y="95" font-size="27" font-weight="700" fill="#fff">Keep your flow</text>
+      <rect x="30" y="125" width="90" height="50" rx="10" fill="#111417" stroke="#69707a"/>
+      <text x="54" y="158" font-size="21" font-weight="700" fill="#fff">⌥ C</text>
+      <rect x="135" y="125" width="134" height="50" rx="10" fill="#111417" stroke="#69707a"/>
+      <text x="154" y="158" font-size="21" font-weight="700" fill="#fff">⇧ ⌥ C</text>
+    </g>
+  </g>
+</svg>

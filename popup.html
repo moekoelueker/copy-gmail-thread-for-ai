@@ -12,12 +12,22 @@
     </header>
 
     <main id="onGmail" hidden>
+      <aside class="data-disclosure" aria-label="Data handling disclosure">
+        <strong>Data handling.</strong> When you choose a copy action, this
+        extension reads the open Gmail conversation—including message text,
+        participant details, links, and attachment information—and processes it
+        locally to create your output. It does not send or retain that data.
+      </aside>
       <button id="copy" class="action primary">Copy thread</button>
       <button id="save" class="action">Copy + save files</button>
       <p class="explain compact">
         Uses this signed-in Gmail tab. No Google sign-in or extension account.
         Saved files go to Chrome’s download directory.
       </p>
+      <aside class="preview-note" aria-label="Developer Preview notice">
+        <strong>Developer Preview.</strong> Built for personal productivity.
+        Review copied output before sharing or relying on it.
+      </aside>
       <p id="hint" class="hint" role="status" aria-live="polite"></p>
     </main>
 
@@ -32,6 +42,15 @@
     <footer class="foot">
       <dl id="shortcuts" class="shortcuts"></dl>
       <button id="remap" class="link">Change shortcuts</button>
+      <nav class="legal" aria-label="Legal and support links">
+        <a href="https://github.com/moekoelueker/copy-gmail-thread-for-ai/blob/main/PRIVACY.md"
+           target="_blank" rel="noreferrer">Privacy</a>
+        <a href="https://github.com/moekoelueker/copy-gmail-thread-for-ai/blob/main/TERMS.md"
+           target="_blank" rel="noreferrer">Terms</a>
+        <a href="https://github.com/moekoelueker/copy-gmail-thread-for-ai/issues"
+           target="_blank" rel="noreferrer">Support</a>
+      </nav>
+      <p class="affiliation">Not affiliated with or endorsed by Google.</p>
     </footer>
 
     <script src="popup.js"></script>

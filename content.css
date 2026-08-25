@@ -15,6 +15,13 @@
   vertical-align: middle;
 }
 
+.ctl-data-note {
+  color: inherit;
+  font: 500 11px/1.4 "Google Sans", Roboto, Arial, sans-serif;
+  opacity: 0.72;
+  white-space: nowrap;
+}
+
 .ctl-btn {
   /* Same copy glyph as the extension icon, inlined so it needs no
      web_accessible_resources entry. Painted with a mask rather than as an
@@ -123,6 +130,7 @@
 @media (max-width: 720px) {
   .ctl-actions {
     display: flex;
+    flex-wrap: wrap;
     width: fit-content;
     margin: 8px 0 0;
   }

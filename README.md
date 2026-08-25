@@ -3,6 +3,12 @@
 Copy an open Gmail conversation into a structured, LLM-readable document—with
 clear sender, recipient, timestamp, body, and attachment attribution.
 
+> **Developer Preview.** This project was built for personal productivity and
+> is not a guaranteed system of record. Gmail can change without notice.
+> Review every capture before sharing it or relying on it, especially in legal,
+> compliance, financial, medical, employment, security, or other high-stakes
+> work. See [Terms of Use](TERMS.md).
+
 The extension targets Chrome on macOS and Windows and uses only ordinary
 cross-platform Chrome APIs. It has been exercised end to end on macOS; the
 Windows path is reviewed but not yet run on a Windows machine, so treat it as
@@ -245,9 +251,9 @@ dependency for browser tests.
 
 ```bash
 npm install
-npm test                 # 93 pure Node unit tests
+npm test                 # 104 pure Node unit tests
 npm run test:browser     # 80 DOM conversion and parser tests in Chromium
-npm run test:e2e         # 35 end-to-end tests driving the installed extension
+npm run test:e2e         # 37 end-to-end tests driving the installed extension
 npm run test:all         # all of the above
 npm run package          # build a release archive of runtime files only
 ```
@@ -288,6 +294,10 @@ No server, no analytics, no storage, no account. The full statement is in
 [PRIVACY.md](PRIVACY.md), including what happens to a thread once you paste it
 into a third-party LLM — which is the one point where data leaves your machine,
 and it is your paste that sends it.
+
+Support and safe-reporting guidance are in [SUPPORT.md](SUPPORT.md). The Web
+Store listing copy, permission justifications, reviewer notes, and release
+checklist are in [`docs/web-store/`](docs/web-store/).
 
 ## License
 
