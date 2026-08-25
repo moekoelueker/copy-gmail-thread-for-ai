@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="800" viewBox="0 0 1280 800">
+  <rect width="1280" height="800" fill="#f4f1ea"/>
+  <text x="64" y="108" font-family="Inter, Arial, sans-serif" font-size="55" font-weight="760" fill="#17191c">Know when a capture needs review.</text>
+  <text x="67" y="158" font-family="Inter, Arial, sans-serif" font-size="22" fill="#626873">The extension surfaces completeness signals instead of silently claiming success.</text>
+
+  <g transform="translate(64 220)">
+    <rect width="680" height="500" rx="30" fill="#fff" stroke="#ddd9d2" stroke-width="2"/>
+    <text x="40" y="58" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="700" fill="#c94735">STRUCTURED OUTPUT</text>
+    <text x="40" y="103" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="17" fill="#20242a">&lt;gmail_thread completeness="partial"&gt;</text>
+    <text x="68" y="141" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="17" fill="#20242a">&lt;warnings&gt;</text>
+    <rect x="62" y="162" width="564" height="88" rx="13" fill="#fff0eb"/>
+    <text x="84" y="195" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" fill="#9d351d">attachment_count_unverified</text>
+    <text x="84" y="225" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" fill="#9d351d">message_boundary_uncertain</text>
+    <text x="68" y="280" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="17" fill="#20242a">&lt;/warnings&gt;</text>
+    <text x="68" y="330" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="17" fill="#20242a">&lt;message index="1"&gt;</text>
+    <rect x="92" y="352" width="370" height="12" rx="6" fill="#20242a" opacity="0.76"/>
+    <rect x="92" y="382" width="490" height="12" rx="6" fill="#20242a" opacity="0.28"/>
+    <rect x="92" y="412" width="420" height="12" rx="6" fill="#20242a" opacity="0.28"/>
+    <text x="68" y="462" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="17" fill="#20242a">&lt;/message&gt;</text>
+  </g>
+
+  <g transform="translate(790 242)" font-family="Inter, Arial, sans-serif">
+    <text x="0" y="0" font-size="17" font-weight="700" fill="#626873">WHEN EVERYTHING LOOKS COMPLETE</text>
+    <image x="0" y="26" width="420" height="56" preserveAspectRatio="xMidYMid meet" href="toast-success.png"/>
+    <text x="0" y="145" font-size="17" font-weight="700" fill="#626873">WHEN YOUR ATTENTION IS NEEDED</text>
+    <image x="0" y="171" width="420" height="56" preserveAspectRatio="xMidYMid meet" href="toast-warning.png"/>
+    <rect x="0" y="293" width="420" height="178" rx="24" fill="#17191c"/>
+    <text x="30" y="339" font-size="22" font-weight="700" fill="#fff">You stay in control.</text>
+    <text x="30" y="378" font-size="17" fill="#c9cdd3">Review the copied output before</text>
+    <text x="30" y="406" font-size="17" fill="#c9cdd3">sharing it or relying on it—especially</text>
+    <text x="30" y="434" font-size="17" fill="#c9cdd3">for sensitive or high-stakes work.</text>
+  </g>
+</svg>

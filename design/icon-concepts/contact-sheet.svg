@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1600" height="1120" viewBox="0 0 1600 1120">
+  <rect width="1600" height="1120" fill="#f4f1ea"/>
+  <text x="80" y="76" font-family="Inter, Arial, sans-serif" font-size="38" font-weight="700" fill="#17191c">Copy Gmail Thread for AI — icon directions</text>
+  <text x="80" y="116" font-family="Inter, Arial, sans-serif" font-size="20" fill="#626873">Current production icon plus six original mail/copy alternatives · August 2026</text>
+
+  <defs>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#0b0d0e" flood-opacity="0.11"/>
+    </filter>
+  </defs>
+
+  <g font-family="Inter, Arial, sans-serif">
+    <g transform="translate(80 160)" filter="url(#shadow)">
+      <rect width="330" height="410" rx="28" fill="#fff"/>
+      <rect x="35" y="34" width="260" height="260" rx="42" fill="#e9e6df"/>
+      <image x="76" y="75" width="178" height="178" href="current-production.png" xlink:href="current-production.png"/>
+      <text x="35" y="337" font-size="17" font-weight="700" fill="#c94735">CURRENT PRODUCTION</text>
+      <text x="35" y="370" font-size="24" font-weight="700" fill="#17191c">01 · Copy glyph</text>
+      <text x="35" y="396" font-size="15" fill="#626873">Best toolbar legibility</text>
+    </g>
+
+    <g transform="translate(450 160)" filter="url(#shadow)">
+      <rect width="330" height="410" rx="28" fill="#fff"/>
+      <rect x="35" y="34" width="260" height="260" rx="42" fill="#e9e6df"/>
+      <image x="35" y="34" width="260" height="260" href="generated/01-envelope-documents.png" xlink:href="generated/01-envelope-documents.png"/>
+      <text x="35" y="350" font-size="24" font-weight="700" fill="#17191c">02 · Mail + pages</text>
+      <text x="35" y="381" font-size="15" fill="#626873">Direct, friendly metaphor</text>
+    </g>
+
+    <g transform="translate(820 160)" filter="url(#shadow)">
+      <rect width="330" height="410" rx="28" fill="#fff"/>
+      <rect x="35" y="34" width="260" height="260" rx="42" fill="#e9e6df"/>
+      <image x="35" y="34" width="260" height="260" href="generated/02-envelope-document.png" xlink:href="generated/02-envelope-document.png"/>
+      <text x="35" y="350" font-size="24" font-weight="700" fill="#17191c">03 · Mail + document</text>
+      <text x="35" y="381" font-size="15" fill="#626873">Clean export concept</text>
+    </g>
+
+    <g transform="translate(1190 160)" filter="url(#shadow)">
+      <rect width="330" height="410" rx="28" fill="#fff"/>
+      <rect x="35" y="34" width="260" height="260" rx="42" fill="#e9e6df"/>
+      <image x="35" y="34" width="260" height="260" href="generated/03-stacked-envelopes.png" xlink:href="generated/03-stacked-envelopes.png"/>
+      <text x="35" y="350" font-size="24" font-weight="700" fill="#17191c">04 · Mail thread</text>
+      <text x="35" y="381" font-size="15" fill="#626873">Conversation-forward</text>
+    </g>
+
+    <g transform="translate(265 630)" filter="url(#shadow)">
+      <rect width="330" height="410" rx="28" fill="#fff"/>
+      <rect x="35" y="34" width="260" height="260" rx="42" fill="#e9e6df"/>
+      <image x="35" y="34" width="260" height="260" href="generated/04-envelope-copy-frame.png" xlink:href="generated/04-envelope-copy-frame.png"/>
+      <text x="35" y="350" font-size="24" font-weight="700" fill="#17191c">05 · Framed mail</text>
+      <text x="35" y="381" font-size="15" fill="#626873">Strong copy + mail balance</text>
+    </g>
+
+    <g transform="translate(635 630)" filter="url(#shadow)">
+      <rect width="330" height="410" rx="28" fill="#fff"/>
+      <rect x="35" y="34" width="260" height="260" rx="42" fill="#e9e6df"/>
+      <image x="35" y="34" width="260" height="260" href="generated/05-envelope-in-copy-cards.png" xlink:href="generated/05-envelope-in-copy-cards.png"/>
+      <text x="35" y="350" font-size="24" font-weight="700" fill="#17191c">06 · Mail in cards</text>
+      <text x="35" y="381" font-size="15" fill="#626873">Most app-icon-like alternative</text>
+    </g>
+
+    <g transform="translate(1005 630)" filter="url(#shadow)">
+      <rect width="330" height="410" rx="28" fill="#fff"/>
+      <rect x="35" y="34" width="260" height="260" rx="42" fill="#e9e6df"/>
+      <image x="35" y="34" width="260" height="260" href="generated/06-thread-cards-document.png" xlink:href="generated/06-thread-cards-document.png"/>
+      <text x="35" y="350" font-size="24" font-weight="700" fill="#17191c">07 · Thread + page</text>
+      <text x="35" y="381" font-size="15" fill="#626873">Structured-output emphasis</text>
+    </g>
+  </g>
+</svg>

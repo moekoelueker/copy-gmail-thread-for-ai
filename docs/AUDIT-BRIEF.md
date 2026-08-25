@@ -104,7 +104,7 @@ Output format — XML-style tags with markdown bodies:
 </meta>
 <message n="1" date="2026-06-14T14:51:00.000Z" local="Sun, Jun 14, 2026 at 7:51 AM"
          from="Jane Doe" email="jane@acme.com">
-<to>Moe Lueker (moelueker@gmail.com)</to>
+<to>Example Recipient (recipient@example.com)</to>
 <body>markdown…</body>
 <attachments><attachment name="contract.pdf" type="application/pdf" size="153K"/></attachments>
 </message>

@@ -28,13 +28,13 @@ fixture.
 files, and an end-to-end test installs that archive and drives it, so the
 shipped artifact is exercised rather than the source tree. Tagged release
 archives are published on the GitHub Releases page (first: v2.1.1), so users
-can install without downloading the whole repository. There is still no
-Chrome Web Store listing, and updates remain manual.
+can install without downloading the whole repository. Version 2.2 adds an
+upload-ready Web Store package plus listing, privacy, reviewer, legal, and
+graphic-asset materials under `docs/web-store/` and `store-assets/`.
 
-A Web Store listing would improve updates but introduces silent auto-update and
-publisher-account considerations; that decision remains explicitly deferred.
-`PRIVACY.md` exists and would satisfy the Web Store's mandatory privacy-policy
-requirement if that decision is revisited.
+The item still must be uploaded, reviewed, and published from the verified
+Zena Labs LLC publisher account. Until that happens, updates for unpacked
+installs remain manual.
 
 ## Known product limits
 

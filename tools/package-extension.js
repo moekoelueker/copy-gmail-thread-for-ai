@@ -22,7 +22,14 @@ const POPUP_ASSETS = ["popup.js", "popup.css"];
 
 function runtimeFiles(root = ROOT) {
   const manifest = JSON.parse(fs.readFileSync(path.join(root, "manifest.json"), "utf8"));
-  const files = new Set(["manifest.json", "LICENSE", "PRIVACY.md", ...POPUP_ASSETS]);
+  const files = new Set([
+    "manifest.json",
+    "LICENSE",
+    "PRIVACY.md",
+    "TERMS.md",
+    "SUPPORT.md",
+    ...POPUP_ASSETS,
+  ]);
   const add = (value) => {
     if (typeof value === "string" && value) files.add(value);
   };

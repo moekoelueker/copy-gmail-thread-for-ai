@@ -38,6 +38,8 @@ test("the release archive carries every file the manifest references", () => {
   assert.ok(files.includes("popup.css"));
   assert.ok(files.includes("LICENSE"));
   assert.ok(files.includes("PRIVACY.md"));
+  assert.ok(files.includes("TERMS.md"));
+  assert.ok(files.includes("SUPPORT.md"));
 });
 
 // The manifest names one service-worker file; everything else it runs arrives

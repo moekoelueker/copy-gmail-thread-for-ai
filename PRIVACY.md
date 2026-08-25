@@ -1,15 +1,23 @@
 # Privacy policy
 
-**Copy Gmail Thread for AI** — last updated 27 July 2026.
+**Copy Gmail Thread for AI** — effective and last updated 25 August 2026.
 
-Publisher: Zena Labs LLC. Contact: the issue tracker at
+Publisher: Zena Labs LLC. Privacy contact: <zenalabsllc@gmail.com>. Support:
 <https://github.com/moekoelueker/copy-gmail-thread-for-ai/issues>.
 
 ## The short version
 
-The extension has no server. It collects nothing, transmits nothing to the
-publisher, and stores nothing between uses. Everything it does happens inside
-your own browser, using the Gmail session you are already signed into.
+The extension processes the one Gmail conversation you choose entirely inside
+your browser. It has no publisher-operated server, sends no copy of your Gmail
+content to Zena Labs LLC, an AI provider, analytics service, advertiser, or any
+other destination, and stores nothing between uses. Its only network access is
+to Gmail itself, using the Gmail session you are already signed into, to fetch
+the conversation and attachments you requested.
+
+The local information it handles can include personal communications, names,
+email addresses, message text, timestamps, attachment names and attachment
+contents. It handles that information only to perform the user-requested copy
+or download operation described below.
 
 ## What it does with your data
 
@@ -26,20 +34,43 @@ conversation, the extension:
 Message text, addresses, timestamps and attachment contents are held in memory
 only for as long as that operation takes.
 
+The extension does not automatically send the resulting clipboard text to an
+AI service or any other destination. A separate paste or upload by you is what
+transmits that information to the destination you choose.
+
 ## What it does not do
 
-- No data is sent to the publisher or to any third party. The only network
-  destination the extension can reach is `https://mail.google.com`, enforced by
-  the host permission in the manifest and re-checked before every request and
-  every download.
+- No copy of Gmail content is sent to the publisher, an AI provider, analytics
+  service, advertiser, or other new destination. The only network origin the
+  extension can reach is `https://mail.google.com`, enforced by the host
+  permission in the manifest and re-checked before every request and download.
 - No Google OAuth, API key, account, or sign-in of any kind.
 - No analytics, telemetry, crash reporting, advertising, or tracking.
-- No use of `chrome.storage`, cookies, `localStorage`, or any other persistence.
-  Nothing survives a page reload.
+- No use of `chrome.storage`, `localStorage`, extension cookies, or any other
+  persistence. The extension does not read or write Gmail cookies; Chrome only
+  supplies the browser's existing Gmail session to the Gmail request. Nothing
+  stored by the extension survives a page reload.
 - No selling, renting, or sharing of user data, and no use of it for any purpose
   other than the single purpose above.
 - No remote code. All code ships in the package and is readable in the
   repository.
+
+## Retention, access and deletion
+
+Zena Labs LLC does not receive or retain extension user data, so it has no
+publisher-held copy to access, correct, export or delete. In-memory data is
+discarded when the operation completes or the page reloads. Clipboard contents
+remain under the operating system's control, and downloaded files remain in
+the directory configured in Chrome until you remove them.
+
+## Chrome Web Store Limited Use
+
+The extension uses information received from Google services only to provide
+its disclosed single purpose: converting the Gmail conversation selected by
+the user into structured clipboard text and, when explicitly requested,
+downloading its attachments. The extension's use of information received from
+Google services adheres to the Chrome Web Store User Data Policy, including the
+Limited Use requirements.
 
 ## Permissions and why each exists
 
@@ -63,9 +94,15 @@ them is up to you.
 
 ## Children
 
-The extension is not directed at children and collects no data from anyone.
+The extension is a general-audience productivity tool and is not directed to
+children under 13. It does not ask for a user's age, create an extension
+account, or send Gmail content or persistent identifiers to Zena Labs LLC. If
+Zena Labs LLC learns that future publisher-operated functionality has received
+personal information from a child in a manner requiring deletion or parental
+consent, it will address that information as required by applicable law.
 
 ## Changes
 
-Material changes to this policy will be recorded in the repository's commit
-history alongside a version bump.
+Material changes to this policy or to the extension's data practices will be
+prominently disclosed before the changed practice begins. Changes are also
+recorded in the repository's commit history alongside a version bump.

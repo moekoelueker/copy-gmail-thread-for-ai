@@ -30,6 +30,10 @@ test("injects clear copy and save controls into an open thread", async () => {
     "Copy thread",
     "Copy + save files",
   ]);
+  assert.strictEqual(
+    (await H.page.locator(".ctl-data-note").innerText()).trim(),
+    "Reads this thread locally"
+  );
 });
 
 test("requests the open thread, never an inbox-list decoy", async () => {

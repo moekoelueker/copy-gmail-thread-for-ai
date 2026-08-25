@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="560" viewBox="0 0 1400 560">
+  <rect width="1400" height="560" fill="#f4f1ea"/>
+  <circle cx="1320" cy="48" r="280" fill="#c94735" opacity="0.12"/>
+  <circle cx="72" cy="610" r="260" fill="#111417" opacity="0.06"/>
+  <image x="84" y="70" width="92" height="92" href="icon128.png"/>
+  <text x="84" y="235" font-family="Inter, Arial, sans-serif" font-size="54" font-weight="750" fill="#17191c">Copy the whole conversation.</text>
+  <text x="84" y="305" font-family="Inter, Arial, sans-serif" font-size="54" font-weight="750" fill="#17191c">Keep the context.</text>
+  <text x="87" y="370" font-family="Inter, Arial, sans-serif" font-size="25" fill="#626873">Gmail threads → structured, LLM-readable text</text>
+  <rect x="84" y="416" width="420" height="54" rx="27" fill="#17191c"/>
+  <text x="114" y="451" font-family="Inter, Arial, sans-serif" font-size="19" font-weight="650" fill="#f7f6f0">Local-only · No OAuth · No analytics</text>
+
+  <g transform="translate(865 84)">
+    <rect x="72" y="0" width="320" height="214" rx="30" fill="#fff" stroke="#d9d5cd" stroke-width="3"/>
+    <path d="M104 53 L232 150 L360 53" fill="none" stroke="#c94735" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M104 53 H360 V174 H104 Z" fill="none" stroke="#17191c" stroke-width="12" stroke-linejoin="round"/>
+    <rect x="0" y="166" width="320" height="214" rx="30" fill="#17191c"/>
+    <rect x="51" y="214" width="220" height="16" rx="8" fill="#f7f6f0" opacity="0.92"/>
+    <rect x="51" y="253" width="170" height="13" rx="6.5" fill="#f7f6f0" opacity="0.58"/>
+    <rect x="51" y="286" width="202" height="13" rx="6.5" fill="#f7f6f0" opacity="0.58"/>
+    <rect x="51" y="319" width="132" height="13" rx="6.5" fill="#f7f6f0" opacity="0.58"/>
+  </g>
+</svg>
