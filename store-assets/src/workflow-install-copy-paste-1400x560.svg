@@ -1,93 +1,120 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1400" height="560" viewBox="0 0 1400 560" role="img" aria-labelledby="title description">
-  <title id="title">Install, copy, and paste a Gmail thread into an LLM</title>
-  <desc id="description">A three-step workflow showing installation in Chrome, copying the open Gmail conversation, and pasting structured context into an LLM.</desc>
+  <title id="title">Install in Chrome, copy the open Gmail thread, and paste it into an LLM</title>
+  <desc id="description">A literal three-step product storyboard using the extension's production icon and in-page Gmail controls, followed by the Command-V or Control-V paste action in an LLM prompt field.</desc>
 
   <rect width="1400" height="560" fill="#f4f1ea"/>
-  <circle cx="1325" cy="42" r="250" fill="#c94735" opacity="0.10"/>
-  <circle cx="44" cy="590" r="230" fill="#111417" opacity="0.05"/>
+  <circle cx="1330" cy="24" r="235" fill="#c94735" opacity="0.10"/>
+  <circle cx="25" cy="585" r="210" fill="#111417" opacity="0.05"/>
 
-  <text x="70" y="76" font-family="Inter, Arial, sans-serif" font-size="40" font-weight="760" fill="#17191c">From Gmail to useful AI context in three steps.</text>
-  <text x="72" y="112" font-family="Inter, Arial, sans-serif" font-size="20" fill="#626873">The extension handles the structure. You choose what to paste and where.</text>
+  <text x="50" y="70" font-family="Inter, Arial, sans-serif" font-size="42" font-weight="760" fill="#17191c">Install. Copy. Paste.</text>
+  <text x="52" y="108" font-family="Inter, Arial, sans-serif" font-size="20" fill="#626873">The same three actions—and the same controls—you use in the product.</text>
 
-  <!-- Step 1 -->
-  <g transform="translate(70 150)">
-    <rect width="380" height="310" rx="30" fill="#ffffff" stroke="#dedbd5" stroke-width="2"/>
-    <rect x="26" y="24" width="50" height="32" rx="16" fill="#c94735"/>
-    <text x="51" y="46" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="750" fill="#ffffff">01</text>
+  <!-- Step 1: Chrome install -->
+  <g transform="translate(45 140)" font-family="Inter, Arial, sans-serif">
+    <rect width="405" height="330" rx="28" fill="#ffffff" stroke="#dedbd5" stroke-width="2"/>
+    <rect x="24" y="22" width="48" height="30" rx="15" fill="#c94735"/>
+    <text x="48" y="43" text-anchor="middle" font-size="15" font-weight="750" fill="#ffffff">01</text>
 
-    <g transform="translate(132 38)">
-      <rect x="0" y="0" width="116" height="90" rx="16" fill="#f1f2f3" stroke="#c9ccd1" stroke-width="2"/>
-      <circle cx="18" cy="16" r="5" fill="#ef5b4d"/>
-      <circle cx="34" cy="16" r="5" fill="#efb337"/>
-      <circle cx="50" cy="16" r="5" fill="#35b85b"/>
-      <rect x="15" y="32" width="86" height="43" rx="9" fill="#17191c"/>
-      <rect x="38" y="43" width="27" height="27" rx="6" fill="none" stroke="#8f949b" stroke-width="4"/>
-      <rect x="54" y="52" width="29" height="29" rx="6" fill="#17191c" stroke="#ffffff" stroke-width="4"/>
-      <path d="M92 43v22M81 54h22" stroke="#c94735" stroke-width="5" stroke-linecap="round"/>
+    <g transform="translate(24 67)">
+      <rect width="357" height="151" rx="15" fill="#ffffff" stroke="#cfd2d7" stroke-width="2"/>
+      <path d="M15 0h327a15 15 0 0 1 15 15v23H0V15A15 15 0 0 1 15 0z" fill="#eef0f2"/>
+      <circle cx="17" cy="19" r="5" fill="#ff5f57"/>
+      <circle cx="33" cy="19" r="5" fill="#febc2e"/>
+      <circle cx="49" cy="19" r="5" fill="#28c840"/>
+
+      <!-- Chrome mark in the browser toolbar -->
+      <g transform="translate(64 7) scale(.74)">
+        <circle cx="16" cy="16" r="15" fill="#ea4335"/>
+        <path d="M16 16h15A15 15 0 0 1 9 29z" fill="#fbbc04"/>
+        <path d="M16 16L9 29A15 15 0 0 1 3 8h17z" fill="#34a853"/>
+        <circle cx="16" cy="16" r="7" fill="#4285f4" stroke="#ffffff" stroke-width="2"/>
+      </g>
+      <rect x="92" y="10" width="166" height="18" rx="9" fill="#ffffff"/>
+      <text x="105" y="23" font-size="10" fill="#7c828b">chromewebstore.google.com</text>
+
+      <image x="19" y="53" width="75" height="75" href="icon128.png"/>
+      <text x="108" y="70" font-size="17" font-weight="750" fill="#17191c">Copy Gmail Thread</text>
+      <text x="108" y="92" font-size="17" font-weight="750" fill="#17191c">for AI</text>
+      <text x="108" y="117" font-size="12" fill="#747a84">Chrome extension</text>
+      <rect x="247" y="72" width="94" height="36" rx="18" fill="#1a73e8"/>
+      <text x="294" y="95" text-anchor="middle" font-size="12" font-weight="700" fill="#ffffff">Add to Chrome</text>
     </g>
 
-    <text x="28" y="172" font-family="Inter, Arial, sans-serif" font-size="28" font-weight="760" fill="#17191c">Install in Chrome</text>
-    <text x="28" y="208" font-family="Inter, Arial, sans-serif" font-size="18" fill="#626873">Add the extension once.</text>
-    <text x="28" y="237" font-family="Inter, Arial, sans-serif" font-size="18" fill="#626873">No Google OAuth or new account.</text>
-    <rect x="28" y="265" width="205" height="28" rx="14" fill="#17191c" opacity="0.08"/>
-    <text x="42" y="285" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="700" fill="#4f555f">CHROME EXTENSION</text>
+    <text x="25" y="259" font-size="28" font-weight="760" fill="#17191c">Install in Chrome</text>
+    <text x="25" y="289" font-size="17" fill="#626873">Add the extension and keep using Gmail</text>
+    <text x="25" y="313" font-size="17" fill="#626873">with your existing signed-in browser tab.</text>
   </g>
 
   <!-- Arrow 1 -->
-  <g transform="translate(466 292)">
-    <path d="M0 0h34" stroke="#c94735" stroke-width="5" stroke-linecap="round"/>
-    <path d="M24 -10l12 10-12 10" fill="none" stroke="#c94735" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
-  </g>
+  <path d="M463 302h20m-9-9 10 9-10 9" fill="none" stroke="#c94735" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
 
-  <!-- Step 2 -->
-  <g transform="translate(510 150)">
-    <rect width="380" height="310" rx="30" fill="#17191c"/>
-    <rect x="26" y="24" width="50" height="32" rx="16" fill="#ff715d"/>
-    <text x="51" y="46" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="750" fill="#17191c">02</text>
+  <!-- Step 2: exact Gmail controls beside a fictional thread -->
+  <g transform="translate(500 140)" font-family="Inter, Arial, sans-serif">
+    <rect width="400" height="330" rx="28" fill="#ffffff" stroke="#dedbd5" stroke-width="2"/>
+    <rect x="24" y="22" width="48" height="30" rx="15" fill="#c94735"/>
+    <text x="48" y="43" text-anchor="middle" font-size="15" font-weight="750" fill="#ffffff">02</text>
 
-    <g transform="translate(125 35)">
-      <rect x="0" y="8" width="130" height="92" rx="17" fill="#ffffff"/>
-      <path d="M15 31l50 39 50-39" fill="none" stroke="#c94735" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
-      <path d="M15 30h100v55H15z" fill="none" stroke="#d8dbe0" stroke-width="4"/>
-      <rect x="65" y="62" width="66" height="52" rx="13" fill="#2a2e33" stroke="#ffffff" stroke-width="3"/>
-      <rect x="82" y="73" width="27" height="27" rx="6" fill="none" stroke="#969ba3" stroke-width="4"/>
-      <rect x="96" y="82" width="29" height="29" rx="6" fill="#2a2e33" stroke="#ffffff" stroke-width="4"/>
+    <g transform="translate(14 67)">
+      <rect width="372" height="151" rx="15" fill="#ffffff" stroke="#cfd2d7" stroke-width="2"/>
+      <path d="M15 0h342a15 15 0 0 1 15 15v31H0V15A15 15 0 0 1 15 0z" fill="#eef0f2"/>
+      <circle cx="17" cy="22" r="5" fill="#ff5f57"/>
+      <circle cx="33" cy="22" r="5" fill="#febc2e"/>
+      <circle cx="49" cy="22" r="5" fill="#28c840"/>
+      <rect x="70" y="12" width="220" height="20" rx="10" fill="#ffffff"/>
+      <text x="85" y="26" font-size="10" fill="#7c828b">mail.google.com/mail/u/0/#inbox/thread</text>
+
+      <circle cx="31" cy="78" r="18" fill="#c94735"/>
+      <text x="58" y="70" font-size="14" font-weight="750" fill="#2b2e33">Maya Chen</text>
+      <text x="58" y="89" font-size="12" fill="#6f7580">Q3 launch plan · 3 messages</text>
+      <rect x="58" y="101" width="248" height="7" rx="3.5" fill="#b7bbc1"/>
+      <rect x="58" y="116" width="198" height="7" rx="3.5" fill="#d0d3d7"/>
+
+      <!-- Captured from the actual in-page extension controls -->
+      <image x="0" y="121" width="372" height="30" href="controls.png"/>
     </g>
 
-    <text x="28" y="172" font-family="Inter, Arial, sans-serif" font-size="28" font-weight="760" fill="#ffffff">Copy the thread</text>
-    <text x="28" y="208" font-family="Inter, Arial, sans-serif" font-size="18" fill="#c7cbd1">Open a Gmail conversation.</text>
-    <text x="28" y="237" font-family="Inter, Arial, sans-serif" font-size="18" fill="#c7cbd1">Click Copy thread—or use a shortcut.</text>
-    <rect x="28" y="265" width="204" height="28" rx="14" fill="#ffffff" opacity="0.12"/>
-    <text x="42" y="285" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="700" fill="#f5f4ef">STRUCTURED OUTPUT</text>
+    <text x="25" y="259" font-size="28" font-weight="760" fill="#17191c">Copy the open thread</text>
+    <text x="25" y="289" font-size="17" fill="#626873">Choose Copy thread or Copy + save files</text>
+    <text x="25" y="313" font-size="17" fill="#626873">right beside the Gmail conversation.</text>
   </g>
 
   <!-- Arrow 2 -->
-  <g transform="translate(906 292)">
-    <path d="M0 0h34" stroke="#c94735" stroke-width="5" stroke-linecap="round"/>
-    <path d="M24 -10l12 10-12 10" fill="none" stroke="#c94735" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
-  </g>
+  <path d="M913 302h20m-9-9 10 9-10 9" fill="none" stroke="#c94735" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
 
-  <!-- Step 3 -->
-  <g transform="translate(950 150)">
-    <rect width="380" height="310" rx="30" fill="#ffffff" stroke="#dedbd5" stroke-width="2"/>
-    <rect x="26" y="24" width="50" height="32" rx="16" fill="#c94735"/>
-    <text x="51" y="46" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="750" fill="#ffffff">03</text>
+  <!-- Step 3: paste into a real prompt field -->
+  <g transform="translate(950 140)" font-family="Inter, Arial, sans-serif">
+    <rect width="405" height="330" rx="28" fill="#17191c"/>
+    <rect x="24" y="22" width="48" height="30" rx="15" fill="#ff715d"/>
+    <text x="48" y="43" text-anchor="middle" font-size="15" font-weight="750" fill="#17191c">03</text>
 
-    <g transform="translate(127 35)">
-      <path d="M12 10h112a16 16 0 0 1 16 16v60a16 16 0 0 1-16 16H63l-28 22 7-22H12A16 16 0 0 1-4 86V26A16 16 0 0 1 12 10z" fill="#f1f2f3" stroke="#c9ccd1" stroke-width="2"/>
-      <rect x="20" y="35" width="72" height="8" rx="4" fill="#17191c"/>
-      <rect x="20" y="53" width="95" height="7" rx="3.5" fill="#777d86"/>
-      <rect x="20" y="70" width="78" height="7" rx="3.5" fill="#9ba0a7"/>
-      <path d="M117 16l5 12 12 5-12 5-5 12-5-12-12-5 12-5z" fill="#c94735"/>
+    <g transform="translate(24 67)">
+      <rect width="357" height="151" rx="15" fill="#f7f7f6"/>
+      <path d="M15 0h327a15 15 0 0 1 15 15v31H0V15A15 15 0 0 1 15 0z" fill="#e9ebee"/>
+      <path d="M20 14l3.5 8 8 3.5-8 3.5-3.5 8-3.5-8-8-3.5 8-3.5z" fill="#c94735"/>
+      <text x="40" y="29" font-size="13" font-weight="700" fill="#3e4248">New chat</text>
+      <text x="18" y="67" font-size="11" font-weight="700" fill="#626873">Paste the copied thread into the prompt</text>
+
+      <rect x="18" y="77" width="321" height="57" rx="14" fill="#ffffff" stroke="#c7cbd1" stroke-width="2"/>
+      <text x="34" y="99" font-family="SFMono-Regular, Consolas, monospace" font-size="11" fill="#34383e">&lt;email_thread format_version="3"&gt;</text>
+      <rect x="34" y="110" width="202" height="6" rx="3" fill="#8c929a"/>
+      <rect x="34" y="121" width="154" height="5" rx="2.5" fill="#c0c4c9"/>
+      <circle cx="315" cy="106" r="14" fill="#17191c"/>
+      <path d="M309 108l6-6 6 6m-6-6v10" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+
+      <g transform="translate(238 49)">
+        <rect width="39" height="27" rx="7" fill="#17191c"/>
+        <text x="19.5" y="19" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">⌘</text>
+        <text x="45" y="19" font-size="13" font-weight="700" fill="#626873">+</text>
+        <rect x="58" width="39" height="27" rx="7" fill="#17191c"/>
+        <text x="77.5" y="19" text-anchor="middle" font-size="14" font-weight="700" fill="#ffffff">V</text>
+      </g>
     </g>
 
-    <text x="28" y="172" font-family="Inter, Arial, sans-serif" font-size="28" font-weight="760" fill="#17191c">Paste into your LLM</text>
-    <text x="28" y="208" font-family="Inter, Arial, sans-serif" font-size="18" fill="#626873">Bring complete, attributed context</text>
-    <text x="28" y="237" font-family="Inter, Arial, sans-serif" font-size="18" fill="#626873">to the AI tool you choose.</text>
-    <rect x="28" y="265" width="218" height="28" rx="14" fill="#17191c" opacity="0.08"/>
-    <text x="42" y="285" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="700" fill="#4f555f">YOU CONTROL THE PASTE</text>
+    <text x="25" y="259" font-size="28" font-weight="760" fill="#ffffff">Paste into your LLM</text>
+    <text x="25" y="289" font-size="17" fill="#c7cbd1">Press ⌘V on macOS or Ctrl+V on Windows.</text>
+    <text x="25" y="313" font-size="17" fill="#c7cbd1">You choose the AI tool and when to send.</text>
   </g>
 
-  <rect x="475" y="496" width="450" height="40" rx="20" fill="#17191c"/>
-  <text x="700" y="522" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="700" fill="#f7f6f0">Local processing · No analytics · No extension account</text>
+  <rect x="470" y="499" width="460" height="38" rx="19" fill="#17191c"/>
+  <text x="700" y="524" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="700" fill="#f7f6f0">Local processing · No analytics · No extension account</text>
 </svg>

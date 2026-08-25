@@ -27,7 +27,7 @@ Local processing · No Google OAuth · No extension account**
 
 ## How it works
 
-![Three-step workflow: install the Chrome extension, copy the open Gmail thread, and paste the structured context into an LLM.](store-assets/workflow-install-copy-paste-1400x560.png)
+![Three-step product workflow: install the production extension icon in Chrome, use the exact Copy thread or Copy plus save files controls beside a Gmail conversation, then press Command-V or Control-V to paste the structured context into an LLM prompt.](store-assets/workflow-install-copy-paste-1400x560.png)
 
 1. **Install the extension.** Add it to Chrome once. It uses the Gmail session
    already open in your browser—there is no separate login, Google OAuth flow,
