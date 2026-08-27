@@ -549,6 +549,234 @@
         );
       })();
 
+      // ---------- paragraphs ----------
+
+      // A single newline is a soft wrap in Markdown, not a break, so six <p>
+      // elements rendered as one run-on block. Observed on a real capture.
+      check(
+        "paragraphs stay separate paragraphs",
+        md("<p>Hi MoeLueker,</p><p>I hope you're doing well!</p><p>Just checking in.</p>"),
+        "Hi MoeLueker,\n\nI hope you're doing well!\n\nJust checking in."
+      );
+
+      // Paragraph-per-div mail must not become double-spaced: this is why the
+      // blank line is specific to <p> rather than applied to every block.
+      check(
+        "sibling divs keep single spacing",
+        md("<div>line one</div><div>line two</div><div>line three</div>"),
+        "line one\nline two\nline three"
+      );
+
+      check(
+        "an empty paragraph does not open a gap",
+        md("<p>one</p><p></p><p>two</p>"),
+        "one\n\ntwo"
+      );
+
+      // renderList already collapses blank lines inside an item, so the <p>
+      // change must not reach in there: two paragraphs in one <li> stay one
+      // list item, and no blank line is introduced that would end the list.
+      (() => {
+        const out = md("<ul><li><p>first</p><p>second</p></li><li>next</li></ul>");
+        check("a paragraph inside a list item does not split the item", out.split("\n- ").length, 2);
+        check("a paragraph inside a list item opens no blank line", /\n\s*\n/.test(out), false);
+      })();
+
+      // ---------- signatures ----------
+
+      (() => {
+        const notice =
+          "Notice: We act as a liaison and do not directly represent PartnerBoost. " +
+          "Contact creator@partnerboost.co for support.";
+        const root = frag(
+          "<div><p>Hi there</p><p>Best regards,<br>Charie</p></div>" +
+            '<div class="gmail_signature"><span>' + notice + "</span></div>"
+        );
+        const result = CT.clean.stripQuoteNodes(root);
+
+        check("a signature block is detached from the body", root.textContent.includes("liaison"), false);
+        check("a detached signature is handed back, not discarded", result.signatures.length, 1);
+        check(
+          "the disclaimer survives in the detached node",
+          CT.richtext.toMarkdown(result.signatures[0]).includes("do not directly represent PartnerBoost"),
+          true
+        );
+        // quotedTrimmed exists to warn that text was dropped. Nothing is
+        // dropped any more, so detaching must not raise it.
+        check("detaching a signature is not a removal", result.removed, 0);
+        check("the body itself is untouched", CT.richtext.toMarkdown(root).trim(), "Hi there\n\nBest regards,\nCharie");
+      })();
+
+      (() => {
+        // The end-to-end path: a print view carrying a signature must publish
+        // it in <signature>, and must not publish it inside <body>.
+        const notice = "Notice: we do not directly represent PartnerBoost.";
+        const html =
+          "<title>Gmail - Wyze</title>" +
+          '<table class="message"><tr><td><b>Charie P</b> charie.p@partnerboost.co</td>' +
+          "<td>Tue, Aug 4, 2026 at 4:20 AM</td></tr>" +
+          "<tr><td>to: moelueker@gmail.com</td></tr>" +
+          '<tr><td><div><p>Hi MoeLueker,</p><p>Best regards,<br>Charie</p></div>' +
+          '<div class="gmail_signature">' + notice + "</div></td></tr></table>";
+        const parsed = CT.gmailParse.parsePrintView(html, CONTEXT, "Wyze");
+        const message = parsed.thread?.messages[0];
+        check("a parsed message carries its signature separately", message?.signature, notice);
+        check("the signature is not left in the body", (message?.body || "").includes("PartnerBoost"), false);
+
+        const xml = CT.format.build({
+          ...parsed.thread,
+          url: "https://mail.google.com/mail/u/0/#all/THREAD_REAL",
+        });
+        check(
+          "the signature reaches the output document",
+          xml.includes('<signature format="markdown">') && xml.includes("PartnerBoost"),
+          true
+        );
+      })();
+
+      // ---------- emphasis ----------
+
+      // Observed on a real capture: the disclaimer came through as
+      // "Contact**[creator@…]**for support", because .trim() inside the
+      // emphasis wrapper deleted the boundary space instead of moving it out.
+      check(
+        "emphasis keeps the space that separated it from the next word",
+        md("<i>Contact </i><b>now</b><i> for support.</i>"),
+        "*Contact* **now** *for support.*"
+      );
+
+      check(
+        "an emphasis element that is only whitespace still separates words",
+        md("<span>Contact</span><i> </i><span>us</span>"),
+        "Contact us"
+      );
+
+      // Two adjacent <b> siblings produced "**Notice****:**" — four asterisks,
+      // which is not two runs to a Markdown parser.
+      check(
+        "adjacent emphasised siblings become one run",
+        md("<b>Notice</b><b>:</b> text"),
+        "**Notice:** text"
+      );
+
+      check(
+        "the real signature shape renders as balanced markdown",
+        md('<i><b>Notice</b><b>:</b> This email is privileged. Contact </i><u><i><a href="mailto:x@y.co">x@y.co</a></i></u><i> for support.</i>'),
+        "***Notice:** This email is privileged. Contact* *[x@y.co](mailto:x@y.co)* *for support.*"
+      );
+
+      check("ordinary bold is unchanged", md("<b>bold</b>"), "**bold**");
+      check("ordinary italic is unchanged", md("<i>ital</i>"), "*ital*");
+      check("nested bold inside italic still nests", md("<i>a <b>b</b> c</i>"), "*a **b** c*");
+
+      // ---------- list followed by a paragraph ----------
+
+      // Without a blank line the paragraph is a lazy continuation of the last
+      // bullet, so "In exchange, …" was absorbed into it.
+      check(
+        "a paragraph after a list is not absorbed into the last bullet",
+        md("<ul><li>one</li><li>two</li></ul><p>In exchange, we ask.</p>"),
+        "- one\n- two\n\nIn exchange, we ask."
+      );
+
+      // ---------- drafts rendered as messages ----------
+
+      // Gmail's print view renders an unsent draft as an ordinary message. A
+      // real 29-message capture therefore reported the mailbox owner answering
+      // a question they had never actually answered.
+      (() => {
+        const html =
+          "<title>Gmail - Terms</title>" +
+          '<table class="message"><tr><td><b>Jennifer</b> j@example.com</td>' +
+          "<td>Thu, Jul 23, 2026 at 1:16 AM</td></tr>" +
+          "<tr><td>to: owner@example.com</td></tr>" +
+          "<tr><td>Please confirm the deadline.</td></tr></table>" +
+          '<table class="message"><tr><td><b>Owner</b> owner@example.com</td>' +
+          "<td>Thu, Jul 23, 2026 at 1:17 AM</td></tr>" +
+          "<tr><td>Yes, July 23 works.</td></tr></table>";
+        const parsed = CT.gmailParse.parsePrintView(html, CONTEXT, "Terms");
+        const messages = parsed.thread?.messages || [];
+        check("a delivered message is marked sent", messages[0]?.delivery, "sent");
+        check("a message with no recipients is not claimed as sent", messages[1]?.delivery, "unconfirmed");
+        check(
+          "the unsent message carries its own warning",
+          parsed.thread?.warnings.some((w) => w.code === "MESSAGE_NOT_CONFIRMED_SENT"),
+          true
+        );
+        check(
+          "a delivered message raises no such warning",
+          (parsed.thread?.warnings || []).filter((w) => w.code === "MESSAGE_NOT_CONFIRMED_SENT").length,
+          1
+        );
+        // A draft having no recipients is the correct reading, not a parse
+        // failure. Reporting it as incomplete headers made every thread holding
+        // a draft come back complete="false", which teaches a reader to ignore
+        // the one flag that catches real breakage.
+        check(
+          "a draft does not report incomplete headers",
+          (parsed.thread?.warnings || []).some((w) => w.code === "HEADER_INCOMPLETE"),
+          false
+        );
+        check("a draft leaves header completeness intact", parsed.thread?.completeness.headers, true);
+        check(
+          "the warning tells a reader what to conclude",
+          /Most likely it is an unsent draft[\s\S]*never communicated to anyone/.test(
+            (parsed.thread?.warnings || []).find((w) => w.code === "MESSAGE_NOT_CONFIRMED_SENT")?.message || ""
+          ),
+          true
+        );
+
+        const xml = CT.format.build({ ...parsed.thread, url: "https://mail.google.com/mail/u/0/#all/T" });
+        const heads = xml.split("\n").filter((l) => l.startsWith("<message "));
+        check("the sent message reaches the document as sent", heads[0]?.includes('delivery="sent"'), true);
+        check("the unsent one reaches it as unconfirmed", heads[1]?.includes('delivery="unconfirmed"'), true);
+      })();
+
+      // The case that must keep flagging: recipient data was present and could
+      // not be understood. That is a parse failure, not a draft, and suppressing
+      // it would hide broken locale handling behind the draft explanation.
+      (() => {
+        const html =
+          "<title>Gmail - Locale</title>" +
+          '<table class="message"><tr><td><b>Ada</b> ada@example.com</td>' +
+          "<td>Tue, Jul 7, 2026 at 9:03 AM</td></tr>" +
+          "<tr><td>vastaanottaja owner@example.com</td></tr>" +
+          "<tr><td>Body text.</td></tr></table>";
+        const parsed = CT.gmailParse.parsePrintView(html, CONTEXT, "Locale");
+        // Deliberate: an unreadable recipient label is reported, but under the
+        // warning that names both readings rather than as a second, redundant
+        // one that also flips completeness. Separating it from a draft needs
+        // the print view's draft markup, which has not been observed.
+        check(
+          "an unreadable recipient label reports the delivery warning",
+          (parsed.thread?.warnings || []).some((w) => w.code === "MESSAGE_NOT_CONFIRMED_SENT"),
+          true
+        );
+        check(
+          "an unreadable recipient label does not double-report",
+          (parsed.thread?.warnings || []).some((w) => w.code === "HEADER_INCOMPLETE"),
+          false
+        );
+        check("its recipients are still not claimed as known", parsed.thread?.messages[0]?.delivery, "unconfirmed");
+      })();
+
+      // The exemption is narrow: it covers a message whose *only* problem is
+      // unreadable recipients. Anything else missing is still a parse failure.
+      (() => {
+        const html =
+          "<title>Gmail - Broken</title>" +
+          '<table class="message"><tr><td><b></b></td><td></td></tr>' +
+          "<tr><td>vastaanottaja owner@example.com</td></tr>" +
+          "<tr><td>Body text.</td></tr></table>";
+        const parsed = CT.gmailParse.parsePrintView(html, CONTEXT, "Broken");
+        check(
+          "a message missing more than recipients still reports incomplete headers",
+          (parsed.thread?.warnings || []).some((w) => w.code === "HEADER_INCOMPLETE"),
+          true
+        );
+        check("and still fails header completeness", parsed.thread?.completeness.headers, false);
+      })();
+
       const failed = results.filter((result) => !result.ok);
       const out = document.getElementById("out");
       out.textContent =

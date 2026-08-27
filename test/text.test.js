@@ -64,7 +64,37 @@ test("toIso never fabricates a date", () => {
 test("slugify produces a safe folder name", () => {
   assert.strictEqual(T.slugify("Q3 renewal / terms!!"), "q3-renewal-terms");
   assert.strictEqual(T.slugify("///"), "thread");
-  assert.ok(T.slugify("x".repeat(200)).length <= 60);
+  // Capped at 50, not the full 60-character folder budget: threadFolder()
+  // appends a discriminator and the two together must still fit.
+  assert.ok(T.slugify("x".repeat(200)).length <= 50);
+});
+
+test("threadKey reduces any Gmail thread id to a path-safe discriminator", () => {
+  assert.strictEqual(T.threadKey("19fcc80bb250daf4"), "b250daf4");
+  // A colon would be refused outright by safeDownloadPath, so the "thread-f:"
+  // form has to survive reduction rather than poison the path.
+  assert.strictEqual(T.threadKey("thread-f:1785512340987654321"), "87654321");
+  assert.ok(!/[^a-z0-9]/.test(T.threadKey("thread-f:178551234098")));
+  assert.strictEqual(T.threadKey(""), "");
+  assert.strictEqual(T.threadKey(null), "");
+});
+
+test("threadFolder separates two conversations that share a subject", () => {
+  const a = T.threadFolder("Updated invitation: standup", "19fcc80bb250daf4");
+  const b = T.threadFolder("Updated invitation: standup", "18aabbccddeeff00");
+  assert.notStrictEqual(a, b);
+  assert.strictEqual(a, "updated-invitation-standup-b250daf4");
+});
+
+test("threadFolder stays inside the folder budget and is path-safe", () => {
+  const folder = T.threadFolder("x".repeat(200), "19fcc80bb250daf4");
+  assert.ok(folder.length <= 60, `folder was ${folder.length} chars`);
+  assert.ok(!/[\\/:*?"<>|]/.test(folder));
+  assert.ok(!/[. ]$/.test(folder));
+});
+
+test("threadFolder falls back to the subject slug when no id is available", () => {
+  assert.strictEqual(T.threadFolder("Q3 renewal", ""), "q3-renewal");
 });
 
 test("unwrapRedirect recovers the real destination", () => {

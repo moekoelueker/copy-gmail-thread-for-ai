@@ -2,6 +2,10 @@
 
 State as of version 2.1.
 
+Output is `format_version="4"`. Version 4 adds `<signature>`; a consumer that
+ignores the element sees exactly what version 3 gave it, because that content
+was previously deleted outright.
+
 ## Requires a live Gmail session
 
 The automated browser harness intentionally has no Google credentials. Before a
@@ -13,7 +17,26 @@ release, verify the cases in `manual-test.md`, especially:
   a colonless locale would degrade to an explicit partial header;
 - senders whose display names begin with label words (Tobias, Tom, Andrea);
 - inline replies created by Gmail, Outlook, and Apple Mail;
-- attachments across multiple messages, including duplicate filenames;
+- attachments across multiple messages, including duplicate filenames, and
+  specifically an attachment on a message other than the first;
+- an unsent draft sitting in a thread. Every message carries `delivery="sent"`
+  or `delivery="unconfirmed"`, and an unconfirmed one raises
+  `MESSAGE_NOT_CONFIRMED_SENT` alone — not also `HEADER_INCOMPLETE` — and does
+  not pull the capture to `complete="false"`. A draft is common, and flipping
+  the completeness flag on every thread holding one taught a reader to ignore
+  the flag that catches real breakage.
+
+  **Known cost, accepted deliberately:** a *sent* message whose recipient
+  labels this parser cannot read is indistinguishable from a draft here, and so
+  also no longer affects completeness. It is still reported, in a warning that
+  names both readings. Two attempts to separate them by reasoning about the
+  markup were both wrong — whatever Gmail prints for a draft is neither an
+  absent recipient row nor a recognisable label. **Capture a real print view of
+  a thread containing a draft** (`fixtures.md`) before trying again; with that
+  markup, `unconfirmed` can become a positive `draft` and the locale case can
+  get its `HEADER_INCOMPLETE` back;
+- two distinct threads sharing a subject, which must now reach distinct folders;
+- that `thread.xml` is written beside the attachments and matches the clipboard;
 - Chrome’s real download preferences on macOS and Windows;
 - light, dark, and narrow Gmail layouts;
 - actual shortcut registration.
@@ -38,6 +61,17 @@ installs remain manual.
 
 ## Known product limits
 
+- Attachment links are scoped by account, not by thread. `th` on a Gmail
+  attachment URL names the *message* carrying the file; a thread id is its
+  first message's id, so the two coincide only for message 1. Requiring
+  equality refused every attachment after the first — save mode saved nothing
+  on any thread with a reply — and it was never the protection it appeared to
+  be, because at the service-worker boundary `context.threadId` arrives in the
+  same message as the URL. What scopes an attachment now is the account index,
+  derived from the sender's own tab and never from the message, plus the fact
+  that a link must be rendered as Gmail's own attachment markup to be
+  discovered. `resolveAttachmentUrl` still accepts `exactThread: true` for a
+  caller that can supply a trustworthy thread id.
 - Gmail internals are undocumented and can break the adapter.
 - Recipient localization is incomplete. A header line carrying an address the
   parser does not understand (an unsupported locale's label, a wrapped list)
@@ -59,8 +93,13 @@ installs remain manual.
   authoritative rendering.
 - Windows has never been executed against; see the Windows section of
   `manual-test.md`.
-- Some signatures or quoted history remain when removal would risk deleting
-  content.
+- Some quoted history remains when removal would risk deleting content.
+- Signature blocks are no longer deleted. Whatever Gmail marked
+  `div.gmail_signature` is carried in `<signature>`, because a real capture lost
+  a sender's legal disclaimer — who they do and do not represent, and how to
+  verify an offer — while a tracking table in the same message survived. The
+  heuristic text-level signature trim in `trimQuotedText` is unchanged and can
+  still cut a sign-off it judges boilerplate.
 
 ## Future work worth considering
 

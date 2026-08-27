@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Copy Gmail Thread for AI",
-  "version": "2.2.0",
-  "description": "Copy an open Gmail thread as structured text with completeness warnings. Local-only; no OAuth, server, analytics, or account.",
+  "version": "2.2.1",
+  "description": "Copy or export complete Gmail threads as AI-ready text for ChatGPT, Claude, or Gemini. Private, local, and no account.",
   "homepage_url": "https://github.com/moekoelueker/copy-gmail-thread-for-ai",
   "permissions": [
     "downloads",

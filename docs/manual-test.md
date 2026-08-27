@@ -24,7 +24,7 @@ before a public release.
       conversation.
 - [ ] `<messages>` equals Gmail’s full count, including messages collapsed on
       screen.
-- [ ] Output begins `<email_thread format_version="3">` and ends
+- [ ] Output begins `<email_thread format_version="4">` and ends
       `</email_thread>`.
 - [ ] For a normal print-view capture, all three `<completeness>` attributes and
       `<complete>` are `true`.
@@ -38,6 +38,13 @@ before a public release.
 ## Attribution and content
 
 - [ ] Every message has the correct `n`, `from`, `email`, `date`, and `local`.
+- [ ] Leave an unsent draft reply in a thread and capture it. The draft must
+      carry `delivery="unconfirmed"` and raise `MESSAGE_NOT_CONFIRMED_SENT`;
+      every sent message must carry `delivery="sent"`. The draft alone must not
+      make the capture incomplete — `headers` stays `true` and no
+      `HEADER_INCOMPLETE` appears — and the toast must say
+      `N possible unsent draft`. Record what Gmail's print view renders for the
+      draft; positive draft detection is blocked on seeing it.
 - [ ] To, Cc, and Bcc recipients are under the correct message. Include a
       display name containing a comma.
 - [ ] A sender whose display name begins with a recipient label word — Tobias,
@@ -49,6 +56,12 @@ before a public release.
 - [ ] Remote images appear only as inert `[image: …]` descriptions; no
       `![…](https://…)` tracker remains.
 - [ ] Recognized history is removed without deleting a point-by-point answer.
+- [ ] A sender whose signature block carries substantive text — a legal
+      disclaimer, an affiliation, a "reply here to verify" address — has that
+      text present in `<signature>` and absent from `<body>`. It must not be
+      missing from the output altogether.
+- [ ] A message written as several paragraphs pastes as several paragraphs, not
+      one run-on block. Check a sender who uses `<p>` rather than `<div>`.
 - [ ] Forwarded content is retained.
 - [ ] A body containing `<message>`, `</message>`, and `]]>` produces parseable
       XML with the original text inside `<body>`.
@@ -69,11 +82,19 @@ before a public release.
 ## Attachments and paths
 
 - [ ] **Copy thread** inlines a small text file, lists a PDF, and starts no
-      download.
+      download. No `thread.xml` is written.
 - [ ] **Copy + save files** downloads both the text file and PDF.
 - [ ] Output says `download started`, never `saved`.
-- [ ] Files land under `gmail-threads/<sanitized-subject>/` inside Chrome’s
-      configured download directory.
+- [ ] Files land under `gmail-threads/<sanitized-subject>-<thread-key>/` inside
+      Chrome’s configured download directory.
+- [ ] `thread.xml` sits in that same folder and its contents are identical to
+      what was pasted from the clipboard.
+- [ ] Capture two different threads that share a subject — recurring calendar
+      invitations are the easiest source. They must land in **different**
+      folders, and neither may contain the other's files.
+- [ ] Capture one thread twice. Same folder both times; the second capture
+      writes `(1)` variants including `thread.xml (1)`, and each manifest path
+      names the file that capture actually wrote.
 - [ ] Test duplicate filenames, including an existing `file (2).pdf`; no file
       is overwritten or ambiguously referenced.
 - [ ] Test spaces, Unicode, emoji, and a very long filename.
@@ -122,8 +143,9 @@ support is **unverified**, not supported.
       Chrome, via `chrome://extensions` → Developer mode → **Load unpacked**.
 - [ ] `Alt+C` and `Alt+Shift+C` register and fire. Confirm neither collides with
       a system or vendor shortcut on the test machine's keyboard layout.
-- [ ] Attachments land under `gmail-threads\<subject>\<file>` inside the
-      configured download folder, with backslash separators shown by Explorer.
+- [ ] Attachments and `thread.xml` land under
+      `gmail-threads\<subject>-<thread-key>\` inside the configured download
+      folder, with backslash separators shown by Explorer.
 - [ ] Change the download folder to a non-default path, including one on a
       second drive, and repeat.
 - [ ] Send yourself files named `CON.txt`, `NUL.pdf`, `COM1.csv`, `PRN.docx`,

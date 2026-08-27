@@ -11,6 +11,7 @@
 - [x] Support and private-reporting guidance.
 - [x] In-product Developer Preview and privacy/terms/support links.
 - [x] Store listing, privacy-form values, and reviewer instructions.
+- [x] Competitive and search-discovery analysis for the public listing.
 - [x] Publisher-account, measurement, donation, and future monetization guidance.
 - [x] 128px icon, required promotional tile, and store screenshots.
 - [x] Runtime-only release packaging and archive-install end-to-end test.
@@ -39,14 +40,15 @@
 - [x] Run `npm ci && npm run test:all && npm run package`.
 - [x] Inspect the ZIP and confirm `manifest.json` is at its root.
 
-## Developer Dashboard
+## Developer Dashboard — version 2.2.1 update
 
-- [ ] Add a new item and upload `copy-gmail-thread-for-ai-2.2.0.zip`.
+- [ ] Open the approved item and upload
+      `copy-gmail-thread-for-ai-2.2.1.zip` as a new package.
 - [ ] Complete Store Listing using `STORE-LISTING.md`.
 - [ ] Complete Privacy using `PRIVACY-FORM.md`.
 - [ ] Add `REVIEWER-NOTES.md` to Test instructions.
 - [ ] Upload the assets from `store-assets/`.
-- [ ] Select **Unlisted**, all intended regions, and **No in-app purchases**.
+- [ ] Select **Public**, all intended regions, and **No in-app purchases**.
 - [ ] Resolve every automated package warning.
 - [ ] Stage the release and review the final listing.
 - [ ] Submit for review only after the account owner confirms the public legal

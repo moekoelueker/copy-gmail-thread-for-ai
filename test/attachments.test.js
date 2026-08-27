@@ -198,9 +198,44 @@ test("an exactly 100 KB text attachment is not marked truncated", async (t) => {
 });
 
 test("targetPath stays inside the extension folder", () => {
-  const p = A.targetPath("../escape", "../../x.sh");
+  const p = A.targetPath("../escape", "../../x.sh", "THREAD_REAL");
   assert.ok(p.startsWith("gmail-threads/"), p);
   assert.ok(!p.includes(".."), p);
+});
+
+test("targetPath separates two threads that share a subject", () => {
+  // Recurring calendar updates arrive as distinct threads with byte-identical
+  // subjects. Sharing a folder meant Chrome's uniquify renamed the second
+  // thread's file rather than separating it, leaving the manifest pointing at
+  // a path that could hold either thread's bytes.
+  const a = A.targetPath("Updated invitation: standup", "notes.pdf", "19fcc80bb250daf4");
+  const b = A.targetPath("Updated invitation: standup", "notes.pdf", "18aabbccddeeff00");
+  assert.notStrictEqual(a, b);
+  assert.strictEqual(a, "gmail-threads/updated-invitation-standup-b250daf4/notes.pdf");
+});
+
+test("every path a capture produces is accepted by the download boundary", () => {
+  const S = require("./loader").security;
+  for (const subject of ["Q3 renewal", "../escape", "!!!", "CON", "x".repeat(200), "回复: 预算"]) {
+    for (const threadId of ["19fcc80bb250daf4", "thread-f:1785512340987654321"]) {
+      const file = A.targetPath(subject, "invoice.pdf", threadId);
+      assert.ok(S.safeDownloadPath(file), file);
+      const doc = A.threadDocumentPath(subject, threadId);
+      assert.ok(S.safeDownloadPath(doc), doc);
+      assert.ok(doc.endsWith("/thread.xml"), doc);
+      // The transcript must land beside the files it describes.
+      assert.strictEqual(
+        doc.slice(0, doc.lastIndexOf("/")),
+        file.slice(0, file.lastIndexOf("/"))
+      );
+    }
+  }
+});
+
+test("normalise derives attachment paths from the thread, not the subject alone", () => {
+  const att = (id) => `/mail/u/0/?view=att&th=THREAD_REAL&attid=${id}&disp=safe`;
+  const [item] = A.normalise([{ name: "invoice.pdf", href: att("0.1") }], "Q3 renewal", CONTEXT);
+  assert.strictEqual(item.path, "gmail-threads/q3-renewal-readreal/invoice.pdf");
 });
 
 // Gmail percent-encodes the filename inside download_url. Leaving it encoded
@@ -266,4 +301,11 @@ test("a merged entry still reports a refused chip link rather than no link", () 
   assert.strictEqual(normalised[0].url, null);
   assert.strictEqual(normalised[0].rejectedUrl, true);
   assert.strictEqual(normalised[0].messageN, 1);
+});
+
+test("the folder, the transcript and every attachment agree on one location", () => {
+  const folder = A.threadFolderPath("Q3 renewal", "19fcc80bb250daf4");
+  assert.strictEqual(folder, "gmail-threads/q3-renewal-b250daf4");
+  assert.strictEqual(A.threadDocumentPath("Q3 renewal", "19fcc80bb250daf4"), `${folder}/thread.xml`);
+  assert.strictEqual(A.targetPath("Q3 renewal", "invoice.pdf", "19fcc80bb250daf4"), `${folder}/invoice.pdf`);
 });

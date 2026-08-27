@@ -1,6 +1,6 @@
 # Measurement, email, donations, and monetization
 
-Version 2.2.0 intentionally contains no analytics, tracking, account system,
+Version 2.2.1 intentionally contains no analytics, tracking, account system,
 payment code, donation code, or email collection. That makes the initial
 Developer Preview easier to review and preserves its local-only promise.
 
@@ -36,7 +36,7 @@ If feature-use counts become essential later, add only a separately reviewed,
 opt-in telemetry design that records minimal events such as `copy_succeeded`
 and never records thread text, participants, subjects, attachment names, Gmail
 URLs, account identifiers, or clipboard output. That is deliberately out of
-scope for version 2.2.0.
+scope for version 2.2.1.
 
 ## Collect email addresses safely
 

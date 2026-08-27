@@ -107,3 +107,27 @@ test("the change listener is released once the download settles", async () => {
 
   assert.strictEqual(api.listeners.length, 0, "listener leaked past the download");
 });
+
+test("dataUrl round-trips text the worker was handed", () => {
+  const text = '<email_thread format_version="4">ünïcode ✓ 😀</email_thread>';
+  const url = D.dataUrl(text);
+  assert.ok(url.startsWith("data:application/xml;charset=utf-8;base64,"), url.slice(0, 60));
+  const decoded = Buffer.from(url.slice(url.indexOf(",") + 1), "base64").toString("utf8");
+  assert.strictEqual(decoded, text);
+});
+
+test("dataUrl encodes a payload larger than one btoa chunk", () => {
+  // Encoded in chunks because btoa needs one Latin-1 character per byte, and
+  // spreading a multi-megabyte array through String.fromCharCode at once
+  // overflows the argument stack. A payload well past the chunk size proves
+  // the loop rather than the happy path.
+  const text = "a".repeat(0x8000 * 3 + 17);
+  const decoded = Buffer.from(D.dataUrl(text).split(",")[1], "base64").toString("utf8");
+  assert.strictEqual(decoded.length, text.length);
+  assert.strictEqual(decoded, text);
+});
+
+test("dataUrl never yields a URL with a raw newline or quote", () => {
+  const url = D.dataUrl('a\nb"c\'d');
+  assert.ok(!/[\n\r"']/.test(url), url);
+});

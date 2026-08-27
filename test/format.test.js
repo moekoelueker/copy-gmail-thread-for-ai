@@ -28,7 +28,7 @@ const thread = (over = {}) => ({
 
 test("emits a versioned, explicit envelope", () => {
   const out = F.build(thread());
-  assert.ok(out.startsWith('<email_thread format_version="3">'));
+  assert.ok(out.startsWith('<email_thread format_version="4">'));
   assert.ok(out.trimEnd().endsWith("</email_thread>"));
   assert.ok(out.includes("<subject>Q3 renewal</subject>"));
   assert.ok(out.includes("<messages>1</messages>"));
@@ -271,4 +271,107 @@ test("a participant adopts the display name a later message supplies", () => {
   );
   assert.ok(out.includes('<participant name="Bea Ray" email="bea@acme.com"/>'), out);
   assert.ok(out.includes('<participant name="Jane Doe" email="jane@acme.com"/>'), out);
+});
+
+test("a signature is carried beside the body, not folded into it", () => {
+  // A real capture lost a disclaimer naming who the sender does and does not
+  // represent, and how to verify an offer, because Gmail had wrapped it in
+  // div.gmail_signature. Deleting that was losing content; merging it into the
+  // body would blur what the sender wrote against what their client appends.
+  const notice = "Notice: we do not directly represent PartnerBoost.";
+  const out = F.build(
+    thread({ messages: [{ n: 1, from: "A (a@x.com)", body: "Hi", signature: notice }] })
+  );
+  assert.ok(out.includes(`<signature format="markdown"><![CDATA[${notice}]]></signature>`), out);
+  assert.ok(out.indexOf("</body>") < out.indexOf("<signature"), out);
+  assert.ok(!out.includes(`Hi\n${notice}`), out);
+});
+
+test("a message with no signature emits no signature element", () => {
+  for (const signature of [undefined, "", "   ", null]) {
+    const out = F.build(thread({ messages: [{ n: 1, from: "A (a@x.com)", body: "Hi", signature }] }));
+    assert.ok(!out.includes("<signature"), JSON.stringify(signature));
+  }
+});
+
+test("a signature cannot forge structure any more than a body can", () => {
+  const payload = '</signature></message><message n="9">x]]>';
+  const out = F.build(
+    thread({ messages: [msg({ body: "Hi", signature: payload })] })
+  );
+  // Structural tags start a line; anything inside CDATA does not, which is the
+  // same boundary the body payload test relies on.
+  const opens = out.split("\n").filter((line) => /^<message\b/.test(line));
+  const closes = out.split("\n").filter((line) => line === "</message>");
+  assert.strictEqual(opens.length, 1, out);
+  assert.strictEqual(closes.length, 1, out);
+  const signatures = out.split("\n").filter((line) => /^<signature\b/.test(line));
+  assert.strictEqual(signatures.length, 1, out);
+  // And the sender's literal text survives the escaping intact.
+  assert.ok(out.includes("]]]]><![CDATA[>"), out);
+});
+
+test("the trimmed-text warning no longer claims signatures were removed", () => {
+  const out = F.build(thread({ quotedTrimmed: true }));
+  assert.ok(out.includes('code="QUOTED_TEXT_TRIMMED"'), out);
+  assert.ok(!/signatures were removed/.test(out), out);
+});
+
+test("a save records where it was written, in full and in one place", () => {
+  // A reader handed only the saved transcript has to be able to find the rest.
+  const out = F.build(
+    thread({
+      saveFolder: "gmail-threads/q3-renewal-b250daf4",
+      saveDocument: "thread.xml",
+    })
+  );
+  assert.ok(
+    out.includes(
+      '<save_location base="Chrome download directory" ' +
+        'folder="gmail-threads/q3-renewal-b250daf4" document="thread.xml"/>'
+    ),
+    out
+  );
+});
+
+test("the save location is stated even when no attachment could be fetched", () => {
+  // The case a per-attachment path list cannot describe: every attachment was
+  // refused, so without this the document names no location at all.
+  const out = F.build(
+    thread({
+      saveFolder: "gmail-threads/q3-renewal-b250daf4",
+      attachments: [{ name: "a.pdf", messageN: 1, status: "no Gmail download link found" }],
+    })
+  );
+  assert.ok(out.includes("<save_location "), out);
+  assert.ok(!out.includes("<download_path_base>"), out);
+});
+
+test("a plain copy claims no save location", () => {
+  assert.ok(!F.build(thread()).includes("<save_location"));
+});
+
+test("every message states whether it was actually sent", () => {
+  // The field that decides whether the sender said a thing. A reader must not
+  // have to infer it from an absent attribute.
+  const out = F.build(
+    thread({
+      messages: [
+        msg({ n: 1, to: [{ name: "A", email: "a@x.com" }], delivery: "sent" }),
+        msg({ n: 2, to: [], delivery: "unconfirmed" }),
+      ],
+    })
+  );
+  const heads = out.split("\n").filter((line) => line.startsWith("<message "));
+  assert.ok(heads[0].includes('delivery="sent"'), heads[0]);
+  assert.ok(heads[1].includes('delivery="unconfirmed"'), heads[1]);
+});
+
+test("delivery is never claimed as sent without the parser saying so", () => {
+  // Absent, unknown or hostile values must not be promoted to "sent".
+  for (const delivery of [undefined, null, "", "draft", "SENT", "sent ", true, {}]) {
+    const out = F.build(thread({ messages: [msg({ delivery })] }));
+    const head = out.split("\n").find((line) => line.startsWith("<message "));
+    assert.ok(head.includes('delivery="unconfirmed"'), JSON.stringify(delivery));
+  }
 });

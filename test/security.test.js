@@ -24,7 +24,7 @@ test("accepts only an exact Gmail attachment URL for the active account and thre
     "https://mail.google.com.evil.example/mail/u/0/?view=att&th=THREAD_REAL&attid=0.1",
     "http://mail.google.com/mail/u/0/?view=att&th=THREAD_REAL&attid=0.1",
     "/mail/u/1/?view=att&th=THREAD_REAL&attid=0.1",
-    "/mail/u/0/?view=att&th=OTHER&attid=0.1",
+    "/mail/u/0/?view=att&th=abc&attid=0.1",
     "/mail/u/0/other?view=att&th=THREAD_REAL&attid=0.1",
     "/mail/u/0/?view=att&th=THREAD_REAL",
     "/mail/u/0/?view=att&th=THREAD_REAL&permmsgid=msg-f:123",
@@ -163,7 +163,7 @@ test("the download boundary ignores an account claimed by the message", () => {
 test("the download boundary rejects unsafe URLs and paths independently", () => {
   const bad = [
     ["off-origin url", { ...GOOD_MSG, url: "https://evil.example/?view=att&th=THREAD_REAL&attid=0.1" }],
-    ["other thread", { ...GOOD_MSG, url: "/mail/u/0/?view=att&th=OTHER&attid=0.1" }],
+    ["malformed th", { ...GOOD_MSG, url: "/mail/u/0/?view=att&th=a&attid=0.1" }],
     ["thread id not in message", { ...GOOD_MSG, threadId: undefined }],
     ["credentials in url", { ...GOOD_MSG, url: "https://u:p@mail.google.com/mail/u/0/?view=att&th=THREAD_REAL&attid=0.1" }],
     ["duplicate th", { ...GOOD_MSG, url: "/mail/u/0/?view=att&th=THREAD_REAL&th=OTHER&attid=0.1" }],
@@ -240,4 +240,177 @@ test("resolving against the account path admits no other location", () => {
   ]) {
     assert.strictEqual(S.resolveAttachmentUrl(value, CONTEXT), null, value);
   }
+});
+
+// ---------- thread document boundary ----------
+
+const GOOD_DOC = {
+  type: "download-thread",
+  text: '<email_thread format_version="4"></email_thread>',
+  path: "gmail-threads/q3-b250daf4/thread.xml",
+};
+
+test("the thread document boundary authorizes only the extension's own Gmail top frame", () => {
+  const allowed = S.authorizeThreadDocument(GOOD_DOC, GOOD_SENDER, RUNTIME_ID);
+  assert.strictEqual(allowed.ok, true);
+  assert.strictEqual(allowed.path, GOOD_DOC.path);
+  assert.strictEqual(allowed.text, GOOD_DOC.text);
+
+  for (const sender of [
+    null,
+    { ...GOOD_SENDER, id: "otheridotheridotheridotheridothe" },
+    { ...GOOD_SENDER, frameId: 1 },
+    { ...GOOD_SENDER, tab: { url: "https://evil.example/" } },
+    { ...GOOD_SENDER, tab: { url: "https://mail.google.com.evil.example/mail/u/0/" } },
+    { ...GOOD_SENDER, tab: undefined },
+  ]) {
+    const result = S.authorizeThreadDocument(GOOD_DOC, sender, RUNTIME_ID);
+    assert.strictEqual(result.ok, false, JSON.stringify(sender));
+    assert.strictEqual(result.error, "thread document request rejected");
+  }
+});
+
+test("a thread document request carries no URL the caller can name", () => {
+  // The whole safety of this path is that the worker builds the source itself.
+  // Anything URL-shaped in the message must be inert: authorization returns
+  // text and a path, never a URL, however the caller labels its fields.
+  const decision = S.authorizeThreadDocument(
+    { ...GOOD_DOC, url: "https://evil.example/payload", downloadUrl: "file:///etc/passwd" },
+    GOOD_SENDER,
+    RUNTIME_ID
+  );
+  assert.strictEqual(decision.ok, true);
+  assert.strictEqual(decision.url, undefined);
+  assert.deepStrictEqual(Object.keys(decision).sort(), ["ok", "path", "text"]);
+});
+
+test("the thread document boundary pins the basename", () => {
+  // safeDownloadPath alone would admit any safe name under the download root,
+  // which would let a compromised content script scatter files through a
+  // user's saved threads. One known name per folder is the whole capability.
+  for (const path of [
+    "gmail-threads/q3-b250daf4/notes.xml",
+    "gmail-threads/q3-b250daf4/thread.html",
+    "gmail-threads/q3-b250daf4/thread.xml.exe",
+    "gmail-threads/q3-b250daf4/Thread.xml",
+    "gmail-threads/thread.xml",
+    "elsewhere/q3-b250daf4/thread.xml",
+    "/gmail-threads/q3-b250daf4/thread.xml",
+    "gmail-threads/../thread.xml",
+    "C:/gmail-threads/q3/thread.xml",
+  ]) {
+    const result = S.authorizeThreadDocument({ ...GOOD_DOC, path }, GOOD_SENDER, RUNTIME_ID);
+    assert.strictEqual(result.ok, false, path);
+    assert.strictEqual(result.error, "unsafe thread document request rejected");
+  }
+});
+
+test("the thread document boundary rejects a wrong type, empty text, and oversized text", () => {
+  assert.strictEqual(
+    S.authorizeThreadDocument({ ...GOOD_DOC, type: "download" }, GOOD_SENDER, RUNTIME_ID).error,
+    "thread document request rejected"
+  );
+
+  for (const text of ["", null, undefined, 42, {}, ["x"]]) {
+    const result = S.authorizeThreadDocument({ ...GOOD_DOC, text }, GOOD_SENDER, RUNTIME_ID);
+    assert.strictEqual(result.ok, false, JSON.stringify(text));
+    assert.strictEqual(result.error, "unsafe thread document request rejected");
+  }
+
+  const justUnder = "a".repeat(S.MAX_THREAD_DOCUMENT_BYTES);
+  assert.strictEqual(
+    S.authorizeThreadDocument({ ...GOOD_DOC, text: justUnder }, GOOD_SENDER, RUNTIME_ID).ok,
+    true
+  );
+  assert.strictEqual(
+    S.authorizeThreadDocument({ ...GOOD_DOC, text: justUnder + "a" }, GOOD_SENDER, RUNTIME_ID).ok,
+    false
+  );
+});
+
+test("the thread document size cap counts UTF-8 bytes, not code units", () => {
+  // A string of astral characters is four bytes per code point and two code
+  // units per code point, so a length-based cap would admit twice the payload
+  // it believed it was admitting.
+  const astral = "\u{1F600}".repeat(S.MAX_THREAD_DOCUMENT_BYTES / 4 + 1);
+  assert.ok(astral.length < S.MAX_THREAD_DOCUMENT_BYTES);
+  assert.strictEqual(
+    S.authorizeThreadDocument({ ...GOOD_DOC, text: astral }, GOOD_SENDER, RUNTIME_ID).ok,
+    false
+  );
+});
+
+test("neither download boundary answers for the other's message type", () => {
+  assert.strictEqual(S.authorizeDownload(GOOD_DOC, GOOD_SENDER, RUNTIME_ID).ok, false);
+  assert.strictEqual(S.authorizeThreadDocument(GOOD_MSG, GOOD_SENDER, RUNTIME_ID).ok, false);
+});
+
+// ---------- message-scoped attachment links ----------
+
+test("an attachment on a later message resolves, because th names the message", () => {
+  // A Gmail thread id is its first message's id, so "th" equals the thread id
+  // only for message 1. Demanding equality refused every attachment after the
+  // first, which meant save mode saved nothing on any thread with a reply.
+  const later = "19f3647466b19bfb";
+  assert.strictEqual(
+    S.resolveAttachmentUrl(`/mail/u/0/?view=att&th=${later}&attid=0.1&disp=safe`, {
+      threadId: "19ec69dc5c88b132",
+      accountIndex: "0",
+    }),
+    `https://mail.google.com/mail/u/0/?view=att&th=${later}&attid=0.1&disp=safe`
+  );
+});
+
+test("a message-scoped th still has to look like a Gmail identifier", () => {
+  for (const th of ["a", "", "THREAD/OTHER", "THREAD OTHER", "x".repeat(257)]) {
+    assert.strictEqual(
+      S.resolveAttachmentUrl(`/mail/u/0/?view=att&th=${encodeURIComponent(th)}&attid=0.1`, CONTEXT),
+      null,
+      JSON.stringify(th)
+    );
+  }
+});
+
+test("relaxing the thread check did not relax anything else", () => {
+  const later = "19f3647466b19bfb";
+  for (const value of [
+    `https://evil.example/mail/u/0/?view=att&th=${later}&attid=0.1`,
+    `http://mail.google.com/mail/u/0/?view=att&th=${later}&attid=0.1`,
+    `/mail/u/1/?view=att&th=${later}&attid=0.1`,
+    `/mail/u/0/other?view=att&th=${later}&attid=0.1`,
+    `/mail/u/0/?view=pt&th=${later}&attid=0.1`,
+    `/mail/u/0/?view=att&th=${later}`,
+    `/mail/u/0/?view=att&th=${later}&th=OTHER&attid=0.1`,
+    `/mail/u/0/?view=att&th=${later}&attid=0.1#frag`,
+  ]) {
+    assert.strictEqual(S.resolveAttachmentUrl(value, CONTEXT), null, value);
+  }
+});
+
+test("exactThread restores the strict comparison for a caller that wants it", () => {
+  const strict = { ...CONTEXT, exactThread: true };
+  assert.ok(S.resolveAttachmentUrl("/mail/u/0/?view=att&th=THREAD_REAL&attid=0.1", strict));
+  assert.strictEqual(
+    S.resolveAttachmentUrl("/mail/u/0/?view=att&th=19f3647466b19bfb&attid=0.1", strict),
+    null
+  );
+});
+
+test("the account, which is tab-derived, is still the binding that holds", () => {
+  // This is what a compromised content script cannot forge, and with the thread
+  // comparison relaxed it is the load-bearing check. It must never be
+  // satisfiable from the message.
+  assert.strictEqual(
+    S.authorizeDownload(
+      {
+        ...GOOD_MSG,
+        url: "/mail/u/1/?view=att&th=19f3647466b19bfb&attid=0.1",
+        threadId: "19f3647466b19bfb",
+        accountIndex: "1",
+      },
+      GOOD_SENDER,
+      RUNTIME_ID
+    ).ok,
+    false
+  );
 });

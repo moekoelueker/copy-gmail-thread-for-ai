@@ -1,21 +1,27 @@
 # Release verification results
 
-Verified 25 August 2026 against version 2.2.0.
+Verified 27 August 2026 against version 2.2.1.
 
 ## Automated checks
 
 - `npm ci`: completed; 0 known dependency vulnerabilities reported.
-- `npm test`: 104/104 passed.
-- `npm run test:browser`: 80/80 passed in Chromium.
-- `npm run test:e2e`: 37/37 runnable tests passed; one intentionally skipped
+- `npm test`: 135/135 passed.
+- `npm run test:browser`: 115/115 passed in Chromium.
+- `npm run test:e2e`: 39/39 runnable tests passed; one intentionally skipped
   real-thread fixture test because the repository contains no reviewed real
   Gmail capture.
 - `git diff --check`: passed.
 
-## Live Gmail smoke test
+The end-to-end suite includes regressions for a Gmail-rendered emoji in the
+subject, print-view title decoration, genuinely mismatched conversations,
+conversation changes during capture, unsent drafts, attachment security, and
+installation from the built release archive.
+
+## Prior live Gmail smoke test
 
 Verified 25 August 2026 on macOS in the Zena Labs Chrome profile against the
-current Gmail interface:
+current Gmail interface. This test used version 2.2.0; the version 2.2.1 package
+has been covered by the expanded automated regression suite above:
 
 - Version 2.2.0 loaded unpacked and injected its controls into an open Gmail
   conversation after the tab was reloaded.
@@ -47,11 +53,11 @@ keyboard-focus passes, failure-mode scenarios, very long threads, and Windows.
 
 ## Package
 
-- File: `copy-gmail-thread-for-ai-2.2.0.zip`
-- Size: 64,872 bytes
+- File: `copy-gmail-thread-for-ai-2.2.1.zip`
+- Size: 71,542 bytes
 - Runtime entries: 24
 - SHA-256:
-  `9bce18b9b3f6f884c2eb2fea80342268e470edddd6480678c9c510929c1ecf92`
+  `13d700b9f5599993602104820cd19a0cd1f3a05282a2e3d1b4d195091fe5f766`
 - `manifest.json` is at the archive root.
 - The archive contains only runtime code, icons, and the license/privacy/terms/
   support documents—no tests, fixtures, generated concepts, store artwork,

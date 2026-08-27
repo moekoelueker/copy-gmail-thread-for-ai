@@ -166,12 +166,36 @@
     const issues = [];
     if (!name && !email) issues.push("sender");
     if (!dateRaw) issues.push("date");
-    if (!labeled.length || !recipientParsingComplete) issues.push("recipients");
+    // Failing to read recipient data is a parse failure. Finding none at all is
+    // not: an unsent draft genuinely has none, and reporting that as incomplete
+    // headers made every thread holding a draft come back complete="false" —
+    // teaching a reader to ignore the one flag that catches real breakage.
+    //
+    // The two are distinguishable. recipientParsingComplete goes false only
+    // when a line carrying an address could not be understood, so a locale this
+    // parser cannot read still flags, while a draft no longer does.
+    if (!recipientParsingComplete) issues.push("recipients");
+
+    // Whether this message was actually sent.
+    //
+    // Gmail's print view renders an unsent draft as an ordinary message, so a
+    // capture reported the mailbox owner answering a question they never
+    // actually answered — the single most consequential thing a reader can get
+    // wrong about a negotiation. A draft carries no delivered recipients,
+    // which is the one difference visible here.
+    //
+    // That observation supports "not confirmed sent"; it does not support
+    // "draft". A sent message whose recipient labels this parser cannot read —
+    // an unsupported locale, a wrapped list — looks identical, and labelling
+    // that one a draft would have a reader discount a commitment the owner
+    // really made. So the honest claim is the weaker one.
+    const delivered = recipients.to.length + recipients.cc.length + recipients.bcc.length;
 
     return {
       from: { name: name || email, email },
       ...recipients,
       dateRaw,
+      delivery: delivered ? "sent" : "unconfirmed",
       complete: issues.length === 0,
       issues,
       raw,
@@ -325,11 +349,44 @@
       // Preserve the candidate position. If an earlier table is skipped, a gap
       // in n is more honest than silently renumbering later messages.
       const n = index + 1;
-      if (!header.complete) {
+      // A message with no readable recipients gets one warning, not two.
+      //
+      // Whatever Gmail prints for an unsent draft is not a labelled recipient
+      // line, so a draft reports the same missing-recipients issue a genuinely
+      // unreadable header does. Raising HEADER_INCOMPLETE as well said the same
+      // thing twice and, worse, drove complete="false" on every thread holding
+      // a draft — training a reader to ignore the one flag that catches real
+      // breakage. MESSAGE_NOT_CONFIRMED_SENT carries strictly more information,
+      // so it is the one that survives.
+      //
+      // The cost is real and deliberate: a *sent* message whose recipient
+      // labels this parser cannot read — an unsupported locale — no longer
+      // pulls the capture to incomplete either. It is still reported, in a
+      // warning that names both readings, because that message's recipients
+      // are genuinely unknown. Separating the two needs the print view's own
+      // draft markup, which has not been observed; see OPEN-ITEMS.md.
+      const recipientsOnly =
+        header.issues.length === 1 && header.issues[0] === "recipients";
+      const unreadableRecipients = header.delivery !== "sent" && recipientsOnly;
+
+      if (!header.complete && !unreadableRecipients) {
         headersComplete = false;
         warnings.push({
           code: "HEADER_INCOMPLETE",
           message: `Message ${n} is missing parsed ${header.issues.join(", ")} information.`,
+        });
+      }
+      if (header.delivery !== "sent") {
+        warnings.push({
+          code: "MESSAGE_NOT_CONFIRMED_SENT",
+          message:
+            `Message ${n} has no readable recipients, so this capture cannot confirm it ` +
+            "was ever sent. Most likely it is an unsent draft — Gmail's print view " +
+            "renders a draft as an ordinary message — in which case its content was " +
+            "never communicated to anyone. Less likely, it is a sent message whose " +
+            "recipient labels could not be parsed. Either way: do not treat its content " +
+            "as something the sender communicated, agreed to, or committed to, and do " +
+            "not rely on it as evidence of what was said.",
         });
       }
 
@@ -346,6 +403,13 @@
       const quoteResult = CL.stripQuoteNodes(bodyCell);
       if (quoteResult.removed) quotedTrimmed = true;
       if (quoteResult.preserved) preservedInlineReplies += quoteResult.preserved;
+      // Rendered after detachment and before the body, so the signature's own
+      // markup can never leak into the body text and vice versa.
+      const signature = (quoteResult.signatures || [])
+        .map((el) => RT.toMarkdown(el))
+        .filter((text) => text.trim())
+        .join("\n\n")
+        .trim();
       const rendered = RT.toMarkdown(bodyCell);
       const cleaned = CL.trimQuotedText(rendered);
       if (cleaned.trimmed) quotedTrimmed = true;
@@ -366,7 +430,9 @@
         bcc: header.bcc,
         date: T.toIso(header.dateRaw),
         dateRaw: header.dateRaw,
+        delivery: header.delivery,
         body: cleaned.text,
+        signature,
       });
     }
 

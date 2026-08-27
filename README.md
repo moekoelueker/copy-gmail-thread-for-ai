@@ -9,15 +9,15 @@ context, or guessing which person said what.
 **One click in Gmail · Clear message attribution · Completeness warnings ·
 Local processing · No Google OAuth · No extension account**
 
-[Install the Developer Preview](#install-in-chrome) ·
+[Install from the Chrome Web Store](https://chromewebstore.google.com/detail/copy-gmail-thread-for-ai/jkbmbnbaeajjncffhpbcngomhboclhfp) ·
 [See how it works](#how-it-works) ·
 [Privacy](PRIVACY.md) ·
 [Terms](TERMS.md) ·
 [Support](SUPPORT.md)
 
-> **Chrome Web Store status:** submitted for review. A one-click Web Store
-> install link will be added here after Google approves the listing. Until
-> then, the Developer Preview can be installed from this repository.
+> **Available on the Chrome Web Store.** Install the approved release from the
+> [official listing](https://chromewebstore.google.com/detail/copy-gmail-thread-for-ai/jkbmbnbaeajjncffhpbcngomhboclhfp),
+> or load the current source manually for development and testing.
 
 > **Developer Preview.** This project was built for personal productivity and
 > is not a guaranteed system of record. Gmail can change without notice.
@@ -99,12 +99,25 @@ completeness warnings before answering.
 [paste the copied thread here]
 ```
 
+### What the capture engine preserves
+
+- requests Gmail’s full print view for the thread already open;
+- checks that the returned subject matches the open conversation;
+- converts each message body to Markdown while keeping message boundaries in
+  strict XML;
+- records From, To, Cc, Bcc, local time, parsed ISO time, and attachment
+  attribution;
+- removes recognized quote chains, and carries signature blocks in their own
+  element rather than deleting them;
+- inlines bounded text attachments and can start Chrome downloads for files;
+- marks individual capture fields incomplete whenever it cannot verify them.
+
 ## Install in Chrome
 
 ### Chrome Web Store
 
-The extension has been submitted for review. This section will link directly
-to the public Chrome Web Store listing after approval.
+[Install Copy Gmail Thread for AI from the Chrome Web Store](https://chromewebstore.google.com/detail/copy-gmail-thread-for-ai/jkbmbnbaeajjncffhpbcngomhboclhfp).
+Chrome installs published updates automatically after Google approves them.
 
 ### Install the Developer Preview now
 
@@ -155,7 +168,7 @@ Windows path has been reviewed but not yet run on a Windows machine; see the
 The clipboard receives strict XML with Markdown inside CDATA:
 
 ```xml
-<email_thread format_version="3">
+<email_thread format_version="4">
 <meta>
 <subject>Q3 renewal</subject>
 <messages>2</messages>
@@ -184,6 +197,9 @@ The renewal numbers are below.
 | --- | --- |
 | Q3 | $1.2M |
 ]]></body>
+<signature format="markdown"><![CDATA[
+Jane Doe · Acme · Notice: this message is for the intended recipient only.
+]]></signature>
 <attachments>
 <attachment name="forecast.pdf" type="application/pdf"
             size="240K"
@@ -214,6 +230,28 @@ Operational warnings—such as a text file that could not be inlined or a
 download that could not start—can appear even when capture completeness is
 true. Read warnings as well as the completeness flag.
 
+Every message carries `delivery="sent"` or `delivery="unconfirmed"`. Gmail's
+print view renders an unsent draft as an ordinary message, so a thread you have
+a half-written reply sitting in would otherwise read as though you had answered.
+`unconfirmed` means the message carries no recipients—what a draft looks
+like—and raises `MESSAGE_NOT_CONFIRMED_SENT`, whose text spells out the
+implication: most likely a draft that was never sent, so its content is not
+something the sender communicated, agreed to, or committed to.
+
+There is one other reading—a sent message whose recipient labels the parser
+could not understand—and the warning names it. This capture cannot tell the two
+apart, so it does not guess: either way the message's recipients are unknown and
+its content should not be relied on as something the sender delivered.
+
+A message like this does not make the whole capture `complete="false"`. A draft
+is ordinary, and a flag that fires on every thread holding one stops being read.
+
+`<signature>` carries what Gmail marked as the sender's signature block, kept
+beside the body rather than inside it. Senders put substantive things
+there—disclaimers, affiliations, the address to write to in order to verify an
+offer—so deleting it was losing content, while merging it into the body would
+blur what the sender wrote against what their client appends.
+
 `local` is the timestamp Gmail displayed. `date` is derived from it, and Gmail
 renders without an offset, so the derivation assumes the browser's timezone —
 recorded as `<capture_timezone>` so a reader can check it. Where the two could
@@ -234,7 +272,7 @@ archives, audio, and video are listed but not parsed. There is no OCR.
 under:
 
 ```text
-gmail-threads/<sanitized-subject>/<sanitized-filename>
+gmail-threads/<sanitized-subject>-<thread-key>/<sanitized-filename>
 ```
 
 That path is relative to the download directory configured in Chrome, which may
@@ -242,6 +280,18 @@ be different on each Mac or Windows PC. Duplicate names receive deterministic
 suffixes. A file declared larger than 25 MB is not started. The clipboard says
 `download started`, not `saved`, because Chrome completes downloads
 asynchronously.
+
+`<thread-key>` is a short discriminator derived from the Gmail thread id. The
+subject alone is not an identity — recurring calendar updates arrive as separate
+threads with byte-identical subjects — and without it two conversations shared a
+folder, where Chrome's `uniquify` renamed the second thread's file rather than
+separating it.
+
+The same folder also receives `thread.xml`, byte-for-byte the document that went
+to the clipboard, so a saved folder records which conversation produced it
+instead of becoming an unlabelled pile of attachments once the clipboard has
+been reused. A transcript that cannot be written is reported in the toast and
+never costs you the copy.
 
 Chrome may further rename a file when the destination already exists or when
 the user chooses another name in a save prompt — capturing the same thread

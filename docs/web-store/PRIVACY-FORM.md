@@ -1,6 +1,6 @@
 # Chrome Web Store Privacy form values
 
-These values are written to match version 2.2.0. Re-check them against the
+These values are written to match version 2.2.1. Re-check them against the
 package whenever runtime behavior changes.
 
 Google began enforcing its updated disclosure rules on 1 August 2026. The
@@ -13,8 +13,8 @@ specific affirmative user action after those disclosures.
 
 At the user's request, read the one Gmail conversation currently open in the
 browser, convert it locally into structured clipboard text with completeness
-warnings, and optionally start downloads for that conversation's verified
-attachments.
+warnings, and optionally save a local transcript and start downloads for that
+conversation's verified attachments.
 
 ## Permission justifications
 
@@ -38,8 +38,9 @@ is not transmitted to the publisher or automatically sent to another service.
 Required only for the explicit **Copy + save files** action. It starts Chrome
 downloads for attachment URLs that are revalidated against the active Gmail
 account and thread and confines requested paths to a relative
-`gmail-threads/` directory. The ordinary **Copy thread** action starts no file
-downloads.
+`gmail-threads/` directory. It also saves the exact copied transcript as
+`thread.xml` in that thread-specific directory. The ordinary **Copy thread**
+action starts no file downloads.
 
 ## Remote code
 

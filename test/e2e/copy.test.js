@@ -62,7 +62,7 @@ test("narrow ancestor fallback finds the thread without searching role=main", as
 test("copies all messages as parseable, complete XML", async () => {
   await H.openThread();
   const out = await H.copyViaButton();
-  assert.ok(out.startsWith('<email_thread format_version="3">'), out.slice(0, 100));
+  assert.ok(out.startsWith('<email_thread format_version="4">'), out.slice(0, 100));
   assert.ok(out.trimEnd().endsWith("</email_thread>"));
   assert.ok(out.includes("<messages>3</messages>"));
   assert.ok(out.includes('<completeness messages="true" headers="true" attachments="true"/>'));
@@ -246,7 +246,7 @@ test("visible-page fallback declares every unverifiable field", async () => {
 test("service-worker command path copies without a second sign-in", async () => {
   await H.openThread();
   const out = await H.copyViaCommand("copy");
-  assert.ok(out.startsWith('<email_thread format_version="3">'));
+  assert.ok(out.startsWith('<email_thread format_version="4">'));
 });
 
 test("popup explains the browser-session model and can copy", async () => {
@@ -261,7 +261,7 @@ test("popup explains the browser-session model and can copy", async () => {
     { timeout: 15_000 }
   );
   const out = await H.page.evaluate(() => navigator.clipboard.readText());
-  assert.ok(out.startsWith('<email_thread format_version="3">'));
+  assert.ok(out.startsWith('<email_thread format_version="4">'));
   if (!popup.isClosed()) await popup.close();
 });
 
@@ -282,14 +282,27 @@ test("save mode starts and completes every attachment download", async () => {
   await H.openThread();
   const before = (await H.downloads()).length;
   const out = await H.copyViaButton("save");
-  const items = await H.waitForDownloads(before + 2);
-  const newItems = items.slice(0, items.length - before);
+  // Two attachments plus the transcript written beside them.
+  const items = await H.waitForDownloads(before + 3);
+  const all = items.slice(0, items.length - before);
+  const transcripts = all.filter((item) => item.url.startsWith("data:"));
+  const newItems = all.filter((item) => !item.url.startsWith("data:"));
 
   assert.strictEqual(newItems.length, 2);
   assert.ok(newItems.every((item) => item.state === "complete"));
   assert.ok(
     newItems.every((item) => item.url.startsWith("https://mail.google.com/mail/u/0/"))
   );
+
+  // The transcript is written from a data: URL the service worker built, never
+  // from one the content script named — that is what keeps this path from
+  // becoming a way to have the extension fetch and save anything.
+  assert.strictEqual(transcripts.length, 1);
+  assert.strictEqual(transcripts[0].state, "complete");
+  // Byte-identical to the clipboard. That is why it cannot carry a warning
+  // about its own failure to be written, and why the toast reports that.
+  assert.strictEqual(fs.readFileSync(transcripts[0].filename, "utf8"), out);
+  assert.match(await H.toastText(), /transcript saved/);
 
   // "complete" alone is a weak claim, and it hid a real problem: these
   // downloads bypass Playwright's routing, so they used to be served by the
@@ -306,11 +319,16 @@ test("save mode starts and completes every attachment download", async () => {
 
   assert.strictEqual((out.match(/status="download started"/g) || []).length, 2);
   assert.ok(out.includes("<download_path_base>Chrome download directory</download_path_base>"));
-  assert.ok(
-    out.includes(
-      'path="gmail-threads/subject-paid-collaboration-opportunity-with-northwind/'
-    )
-  );
+  // The folder carries a thread discriminator, so two conversations sharing a
+  // subject cannot land in one folder and have uniquify silently interleave
+  // their files. The subject slug is capped at 50 to leave room for it.
+  const folder = out.match(/path="gmail-threads\/([^/]+)\//)?.[1];
+  assert.ok(folder, out);
+  assert.ok(folder.startsWith("subject-paid-collaboration-opportunity-with-north"), folder);
+  assert.match(folder, /-[a-z0-9]{1,8}$/, folder);
+  assert.ok(folder.length <= 60, folder);
+  // Every attachment and the transcript share one folder.
+  assert.strictEqual((out.match(new RegExp(`gmail-threads/${folder}/`, "g")) || []).length, 2);
   assert.ok(!out.includes("~/Downloads"));
 });
 
@@ -414,11 +432,34 @@ test("a title decorated by the profile still copies the open thread", async () =
     await H.openThread();
     const out = await H.copyViaButton();
     assert.ok(
-      out.startsWith('<email_thread format_version="3">'),
+      out.startsWith('<email_thread format_version="4">'),
       `refused a decorated title ${JSON.stringify(title)}: ${out.slice(0, 120)}`
     );
     assert.ok(out.includes("<messages>3</messages>"), title);
   }
+});
+
+// Reported from live Gmail: the subject heading replaces emoji characters with
+// <img data-emoji>, whose value is omitted from both innerText and textContent.
+// The print view keeps the real character in its title, so the same thread was
+// refused by the identity guard as a different conversation.
+test("a Gmail-rendered emoji remains part of the open subject", async () => {
+  const baseSubject = "Subject: Paid Collaboration Opportunity with Northwind";
+  const emoji = "🤩";
+  H.state.page = fixture("gmail-thread.html").replace(
+    `          ${baseSubject}\n        </h2>`,
+    `          ${baseSubject}<img data-emoji="${emoji}" class="an1" alt="${emoji}" aria-label="${emoji}">\n        </h2>`
+  );
+  H.state.printView = fixture("printview-negotiation.html").replace(
+    `<title>Gmail - ${baseSubject}</title>`,
+    `<title>Gmail - ${baseSubject}${emoji}</title>`
+  );
+
+  await H.openThread();
+  const out = await H.copyViaButton();
+
+  assert.ok(out.startsWith('<email_thread format_version="4">'), await H.toastText());
+  assert.ok(out.includes(`<subject>${baseSubject}${emoji}</subject>`), out.slice(0, 500));
 });
 
 test("a title naming another conversation is still refused", async () => {
@@ -543,7 +584,7 @@ test("a sender cannot disable the controls with a lookalike subject heading", as
   ]);
 
   const out = await H.copyViaButton();
-  assert.ok(out.startsWith('<email_thread format_version="3">'), out.slice(0, 120));
+  assert.ok(out.startsWith('<email_thread format_version="4">'), out.slice(0, 120));
   assert.ok(out.includes("<messages>3</messages>"));
   const printRequest = H.state.requests.find((url) => url.includes("view=pt"));
   assert.ok(printRequest.includes("th=THREAD_REAL"), printRequest);
@@ -668,7 +709,7 @@ test("a punctuation-only subject still copies", async () => {
   );
   await H.openThread();
   const out = await H.copyViaButton();
-  assert.ok(out.startsWith('<email_thread format_version="3">'), await H.toastText());
+  assert.ok(out.startsWith('<email_thread format_version="4">'), await H.toastText());
   assert.ok(out.includes("<subject>!!!</subject>"));
   assert.ok(out.includes("<messages>3</messages>"));
 });
@@ -715,4 +756,36 @@ test("a late conversation change reports downloads that already started", async 
   assert.match(await H.toastText(), /conversation changed/i);
   assert.match(await H.toastText(), /downloads may already have started/i);
   assert.ok((await H.downloads()).length > before, "the pre-switch download should have started");
+});
+
+// A draft sitting in a thread is the one thing a reader most needs told about:
+// Gmail's print view renders it as an ordinary message, so a capture otherwise
+// reports the mailbox owner saying something they never sent.
+test("an unsent draft is labelled, warned about, and named in the toast", async () => {
+  // Strip the recipient row from the first message only — what a draft looks
+  // like in the print view.
+  H.state.printView = fixture("printview-negotiation.html").replace(
+    "<tr><td>to: Sam Rivera &lt;sam@example.net&gt;</td></tr>",
+    ""
+  );
+  await H.openThread();
+  const out = await H.copyViaButton();
+
+  const heads = out.split("\n").filter((line) => line.startsWith("<message "));
+  assert.ok(heads[0].includes('delivery="unconfirmed"'), heads[0]);
+  assert.ok(
+    heads.slice(1).every((head) => head.includes('delivery="sent"')),
+    heads.join("\n")
+  );
+
+  assert.ok(out.includes('<warning code="MESSAGE_NOT_CONFIRMED_SENT">'), out);
+  assert.match(out, /Most likely it is an unsent draft[\s\S]*?never communicated to anyone/);
+
+  // The capture itself is not broken, and must not claim to be: a flag that
+  // fires on every thread holding a draft stops being read.
+  assert.ok(out.includes('headers="true"'), out);
+  assert.ok(!out.includes('<warning code="HEADER_INCOMPLETE">'), out);
+
+  // And the user is told without having to read the XML.
+  assert.match(await H.toastText(), /1 possible unsent draft/);
 });

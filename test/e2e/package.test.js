@@ -48,7 +48,7 @@ test("the built release archive installs and copies a thread", async (t) => {
 
   await H.openThread();
   const out = await H.copyViaButton();
-  assert.ok(out.startsWith('<email_thread format_version="3">'), out.slice(0, 120));
+  assert.ok(out.startsWith('<email_thread format_version="4">'), out.slice(0, 120));
   assert.ok(out.includes("<messages>3</messages>"));
   assert.ok(out.includes("<complete>true</complete>"));
   assert.ok(out.includes("<attachment_count>2</attachment_count>"));

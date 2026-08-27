@@ -12,15 +12,15 @@ required. The reviewer may use any Gmail account available to the reviewer.
 3. Open the extension popup. It should show **Copy thread** and
    **Copy + save files**.
 4. Choose **Copy thread**, then paste into a plain-text editor. The output
-   should begin with `<email_thread format_version="3">` and include messages,
+   should begin with `<email_thread format_version="4">` and include messages,
    participants, completeness fields, and any warnings.
 5. Return to the same thread and use the two small controls beside the subject
    to verify the in-page interaction. The visible **Reads this thread locally**
    notice is the in-page data-handling disclosure.
 6. To test **Copy + save files**, use a conversation with a harmless test
    attachment. Chrome should start a download below
-   `gmail-threads/<sanitized-subject>/`. This action is separate from ordinary
-   copy.
+   `gmail-threads/<sanitized-subject>-<thread-key>/` and save `thread.xml`
+   beside any verified attachments. This action is separate from ordinary copy.
 7. Open the inbox or a non-Gmail tab. The popup should explain that a Gmail
    conversation must be open rather than attempting to read another site.
 

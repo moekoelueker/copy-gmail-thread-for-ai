@@ -85,10 +85,48 @@
     return threadIdFor(subjectEl());
   }
 
+  // Gmail renders emoji in a subject as images. Neither innerText nor
+  // textContent includes their alt text, so a subject ending in an emoji was
+  // read as a different value from the print view's real-text <title> and the
+  // wrong-thread guard refused the user's own conversation.
+  //
+  // Walk the narrow, Gmail-owned subject heading in document order and admit
+  // only Gmail's explicit data-emoji value for images. Other images stay
+  // silent, matching innerText's previous behavior.
+  function subjectTextFor(heading) {
+    if (!heading) return "";
+    const parts = [];
+
+    function append(node) {
+      if (node.nodeType === 3) {
+        parts.push(node.nodeValue || "");
+        return;
+      }
+      if (node.nodeType !== 1) return;
+
+      const element = node;
+      if (element !== heading) {
+        if (element.matches?.('[aria-hidden="true"], [hidden]')) return;
+        const style = globalThis.getComputedStyle?.(element);
+        if (style && (style.display === "none" || style.visibility === "hidden")) return;
+      }
+
+      if (element.matches?.("img[data-emoji]")) {
+        parts.push(element.getAttribute("data-emoji") || "");
+        return;
+      }
+
+      for (const child of element.childNodes || []) append(child);
+    }
+
+    append(heading);
+    return parts.join("").replace(/\s+/g, " ").trim();
+  }
+
   function currentIdentity() {
     const heading = subjectEl();
     const id = threadIdFor(heading);
-    const subject = (heading?.innerText || heading?.textContent || "").trim();
+    const subject = subjectTextFor(heading);
     const accountIndex = S.accountIndexFromUrl(location.href);
     if (!id || !subject || accountIndex == null) return null;
     return { id, threadId: id, subject, accountIndex };

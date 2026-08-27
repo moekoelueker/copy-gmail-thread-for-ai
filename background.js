@@ -27,19 +27,7 @@ chrome.commands.onCommand.addListener((command) => {
   else if (command === "save-thread") dispatch("save");
 });
 
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (msg?.type !== "download") return false;
-
-  // The entire decision lives in lib/security.js so it can be tested directly
-  // against forged senders. Nothing here re-derives it or works around it.
-  const decision = S.authorizeDownload(msg, sender, chrome.runtime.id);
-  if (!decision.ok) {
-    console.warn("[copy-gmail-thread] refused a download request:", decision.error);
-    sendResponse({ ok: false, error: decision.error });
-    return false;
-  }
-  const { url, path } = decision;
-
+function start(url, path, sendResponse) {
   chrome.downloads.download(
     { url, filename: path, conflictAction: "uniquify", saveAs: false },
     (id) => {
@@ -56,5 +44,34 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       D.settle(chrome.downloads, id, path).then(sendResponse);
     }
   );
-  return true;
+}
+
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  // Every decision lives in lib/security.js so it can be tested directly
+  // against forged senders. Nothing here re-derives one or works around it.
+  if (msg?.type === "download") {
+    const decision = S.authorizeDownload(msg, sender, chrome.runtime.id);
+    if (!decision.ok) {
+      console.warn("[copy-gmail-thread] refused a download request:", decision.error);
+      sendResponse({ ok: false, error: decision.error });
+      return false;
+    }
+    start(decision.url, decision.path, sendResponse);
+    return true;
+  }
+
+  if (msg?.type === "download-thread") {
+    const decision = S.authorizeThreadDocument(msg, sender, chrome.runtime.id);
+    if (!decision.ok) {
+      console.warn("[copy-gmail-thread] refused a thread document request:", decision.error);
+      sendResponse({ ok: false, error: decision.error });
+      return false;
+    }
+    // The URL is built here, from text, and never taken from the message. That
+    // is the whole reason this path is safe to expose to a content script.
+    start(D.dataUrl(decision.text), decision.path, sendResponse);
+    return true;
+  }
+
+  return false;
 });

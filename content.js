@@ -65,8 +65,11 @@
       try {
         await navigator.clipboard.writeText(text);
         return true;
-      } catch (e) {
-        console.warn("[copy-gmail-thread] async clipboard failed, falling back:", e);
+      } catch (_) {
+        // Chrome can reject the async API from a Gmail content script even
+        // after a button click. That is an expected, handled condition: the
+        // synchronous textarea path below is the compatibility fallback. Do
+        // not report it as an extension error when the fallback can still copy.
       }
     }
     return writeViaTextarea(text);
@@ -94,6 +97,24 @@
       } catch (e) {
         console.warn("[copy-gmail-thread] download message failed:", e);
         resolve({ ok: false, error: "download failed to start" });
+      }
+    });
+  }
+
+  function requestThreadDocument(text, path) {
+    return new Promise((resolve) => {
+      try {
+        chrome.runtime.sendMessage({ type: "download-thread", text, path }, (response) => {
+          if (chrome.runtime.lastError) {
+            console.warn("[copy-gmail-thread]", chrome.runtime.lastError.message);
+            resolve({ ok: false, error: "thread document failed to start" });
+            return;
+          }
+          resolve(response || { ok: false, error: "thread document failed to start" });
+        });
+      } catch (e) {
+        console.warn("[copy-gmail-thread] thread document message failed:", e);
+        resolve({ ok: false, error: "thread document failed to start" });
       }
     });
   }
@@ -271,10 +292,30 @@
       }
 
       thread.complete = captureComplete(thread);
+      // Recorded before the document is built so the transcript names its own
+      // folder. The path is derived, not observed, so it is known even when
+      // every attachment failed — which is when it matters most.
+      if (mode === "save") {
+        thread.saveFolder = AT.threadFolderPath(thread.subject, context.threadId);
+        thread.saveDocument = "thread.xml";
+      }
       const output = F.build(thread);
       if (!(await copyToClipboard(output, viaGesture))) {
         toast(MESSAGES.CLIPBOARD_BLOCKED, { warn: true, sticky: true });
         return;
+      }
+
+      // Written after the clipboard, deliberately. The transcript on disk is a
+      // byte-for-byte copy of what was copied, so it cannot carry a warning
+      // about its own failure to be written; the toast reports that instead.
+      // Ordering it here also means a transcript failure can never cost the
+      // user the copy, which is the primary product.
+      let threadDocument = null;
+      if (mode === "save") {
+        threadDocument = await requestThreadDocument(
+          output,
+          AT.threadDocumentPath(thread.subject, context.threadId)
+        );
       }
 
       const messageCount = thread.messages.length;
@@ -301,6 +342,15 @@
         parts.push(`${attachmentSummary.downloadFailed} download${attachmentSummary.downloadFailed === 1 ? "" : "s"} failed`);
       }
       if (attachmentSummary.skipped) parts.push(`${attachmentSummary.skipped} skipped`);
+      if (threadDocument?.ok) parts.push("transcript saved");
+      else if (threadDocument) parts.push("transcript not saved");
+      // Worth saying out loud even though the capture succeeded: a draft reads
+      // as an ordinary message, so without this the user is never told their
+      // own unsent words are in what they just handed to an assistant.
+      const unsent = thread.messages.filter((m) => m.delivery !== "sent").length;
+      if (unsent) {
+        parts.push(`${unsent} possible unsent draft${unsent === 1 ? "" : "s"}`);
+      }
       if (thread.quotedTrimmed) parts.push("quoted text trimmed");
 
       const outputBytes = new TextEncoder().encode(output).byteLength;
@@ -315,7 +365,8 @@
         attachmentSummary.inlineSkipped ||
         attachmentSummary.inlineTruncated ||
         attachmentSummary.unsafe ||
-        attachmentSummary.noLink;
+        attachmentSummary.noLink ||
+        (threadDocument && !threadDocument.ok);
       if (!thread.complete || operationalWarning) {
         toast(`⚠ Copied ${parts.join(" · ")} — review warnings in the pasted output`, {
           warn: true,
