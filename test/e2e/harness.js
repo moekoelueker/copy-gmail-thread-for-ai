@@ -71,6 +71,10 @@ async function start({ extensionRoot = ROOT } = {}) {
     rejectIk: false,
     onAttachmentRequest: null,
     expectedThreadId: "THREAD_REAL",
+    // Gmail's current print-view contract names the thread by its permanent
+    // id; th=<legacy hex> is the older form. A test that puts a permanent id
+    // on the heading sets this so the stand-in recognises the request.
+    expectedPermId: null,
     requests: [],
     externalRequests: [],
     // Requests Playwright's routing never saw. In practice, the downloads.
@@ -141,7 +145,12 @@ async function start({ extensionRoot = ROOT } = {}) {
     }
 
     if (url.searchParams.get("view") === "pt") {
-      if (url.searchParams.get("th") !== state.expectedThreadId) {
+      const byPermId = url.searchParams.has("permthid");
+      const requested = byPermId
+        ? url.searchParams.get("permthid")
+        : url.searchParams.get("th");
+      const expected = byPermId ? state.expectedPermId : state.expectedThreadId;
+      if (!requested || requested !== expected) {
         return route.fulfill({
           status: 404,
           contentType: "text/html; charset=utf-8",

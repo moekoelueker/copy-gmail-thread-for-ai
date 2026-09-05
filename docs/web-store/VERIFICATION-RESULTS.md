@@ -1,6 +1,34 @@
 # Release verification results
 
-Verified 27 August 2026 against version 2.2.1.
+## Version 2.2.2 — verified 5 September 2026
+
+Fix release. A fresh Web Store install on another person's account refused
+every copy with "Gmail returned a different conversation" while 2.2.1 worked on
+the publisher's account. Cause: thread identity was read only from the
+heading's legacy id attribute and sent to Gmail in the older `th=` form, and
+Gmail is A/B testing how it exposes thread ids — on some accounts the attribute
+is absent or the literal string `undefined`, which passed the id shape check.
+The print view is now requested by Gmail's permanent thread id whenever the
+heading carries one (the form Gmail's own **Print all** uses), the legacy form
+is the fallback, placeholder values are rejected, two ids that disagree are
+refused with the reload advice, and the refusal notice names both subjects.
+
+- `npm test`: 138/138 passed.
+- `npm run test:browser`: 115/115 passed in Chromium.
+- `npm run test:e2e`: 43/43 runnable tests passed; one intentionally skipped
+  real-thread fixture test. Four new regressions cover the permanent-id
+  request, the `undefined` placeholder, conflicting ids, and a heading with no
+  usable id; the wrong-conversation test now requires both subjects in the
+  notice.
+- `git diff --check`: passed.
+
+Package: `copy-gmail-thread-for-ai-2.2.2.zip`, 73,261 bytes, 24 runtime
+entries, SHA-256
+`657766d92aa8fab442f0628b3756e30c5a3f62aed7699091c5f1813e6228e2f7`.
+Permission boundary unchanged from 2.2.1. Still unverified live on the
+reporting account; the notice now carries what a report needs.
+
+## Version 2.2.1 — verified 27 August 2026
 
 ## Automated checks
 

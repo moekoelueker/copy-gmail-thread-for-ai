@@ -12,9 +12,12 @@ Open the target conversation in Gmail. In that tab’s DevTools console, run:
 ```js
 (async () => {
   const heading = document.querySelector("h2.hP");
-  const id = heading?.getAttribute("data-legacy-thread-id") ||
-    heading?.closest("[data-legacy-thread-id]")?.getAttribute("data-legacy-thread-id");
-  if (!id) throw new Error("Open a conversation first.");
+  const real = (value) => value && !/^(undefined|null)$/i.test(value) ? value : null;
+  // Mirror the extension: Gmail's permanent id first, the legacy hex id after.
+  const permId = real(heading?.getAttribute("data-thread-perm-id"));
+  const id = real(heading?.getAttribute("data-legacy-thread-id")) ||
+    real(heading?.closest("[data-legacy-thread-id]")?.getAttribute("data-legacy-thread-id"));
+  if (!permId && !id) throw new Error("Open a conversation first.");
 
   const account = location.pathname.match(/\/mail\/u\/(\d+)/)?.[1] || "0";
   const ik = [...document.querySelectorAll('a[href*="ik="]')]
@@ -33,7 +36,8 @@ Open the target conversation in Gmail. In that tab’s DevTools console, run:
   const url = new URL(`/mail/u/${account}/`, location.origin);
   url.searchParams.set("view", "pt");
   url.searchParams.set("search", "all");
-  url.searchParams.set("th", id);
+  if (permId) url.searchParams.set("permthid", permId);
+  else url.searchParams.set("th", id);
   if (ik) url.searchParams.set("ik", ik);
 
   const response = await fetch(url, { credentials: "same-origin" });

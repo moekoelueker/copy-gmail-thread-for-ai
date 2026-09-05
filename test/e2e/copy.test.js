@@ -21,6 +21,7 @@ test.beforeEach(() => {
   H.state.rejectIk = false;
   H.state.onAttachmentRequest = null;
   H.state.expectedThreadId = "THREAD_REAL";
+  H.state.expectedPermId = null;
 });
 
 test("injects clear copy and save controls into an open thread", async () => {
@@ -188,7 +189,13 @@ test("refuses to copy when Gmail returns a different conversation", async () => 
   H.state.printView = fixture("printview-other-thread.html");
   const out = await H.copyViaButton();
   assert.strictEqual(out, "__NOT_COPIED__");
-  assert.match(await H.toastText(), /different conversation/i);
+  const toast = await H.toastText();
+  assert.match(toast, /different conversation/i);
+  // Name both sides. This is the one refusal a user cannot act on or report
+  // usefully without knowing what did not match, and a console line is not
+  // something most people will ever see.
+  assert.ok(toast.includes("linda_schuh_"), toast);
+  assert.ok(toast.includes("Paid Collaboration Opportunity"), toast);
 });
 
 test("refuses if the user changes conversations during capture", async () => {
@@ -788,4 +795,81 @@ test("an unsent draft is labelled, warned about, and named in the toast", async 
 
   // And the user is told without having to read the XML.
   assert.match(await H.toastText(), /1 possible unsent draft/);
+});
+
+// Reported from a fresh Web Store install on another person's account: every
+// copy refused with "Gmail returned a different conversation", while the same
+// build worked on the author's account. Gmail is A/B testing how it exposes
+// thread ids, and on some accounts the heading's legacy id attribute is the
+// literal string "undefined" — two other Gmail extensions guard for exactly
+// this. That string passed the id shape check and went to Gmail as
+// th=undefined, whose search=all print view then described some other thread.
+//
+// Gmail's own "Print all" names the thread by data-thread-perm-id today, so
+// that is what is sent when the heading carries one. The legacy id, when Gmail
+// withholds it, is the same number in base 16.
+const PERM_ID = "thread-f:1670936980932986545";
+const LEGACY_ID = "17305c54c69306b1";
+
+function headingWith(attributes) {
+  return fixture("gmail-thread.html").replace(
+    '<h2 class="hP" data-legacy-thread-id="THREAD_REAL">',
+    `<h2 class="hP" ${attributes}>`
+  );
+}
+
+test("a heading whose legacy id is the literal undefined is never sent to Gmail", async () => {
+  H.state.page = headingWith(
+    `data-legacy-thread-id="undefined" data-thread-perm-id="${PERM_ID}"`
+  );
+  H.state.expectedPermId = PERM_ID;
+  await H.openThread();
+  const out = await H.copyViaButton();
+  assert.ok(out.includes("<messages>3</messages>"), await H.toastText());
+  const printRequest = H.state.requests.find((url) => url.includes("view=pt"));
+  assert.ok(printRequest, "no print-view request was made");
+  assert.ok(!/th=undefined/.test(printRequest), printRequest);
+  assert.ok(printRequest.includes(`permthid=${encodeURIComponent(PERM_ID)}`), printRequest);
+  assert.ok(out.includes(`#all/${LEGACY_ID}</url>`), out.slice(0, 600));
+});
+
+test("the print view is requested by the permanent id when the heading carries one", async () => {
+  H.state.page = headingWith(
+    `data-legacy-thread-id="${LEGACY_ID}" data-thread-perm-id="${PERM_ID}"`
+  );
+  H.state.expectedPermId = PERM_ID;
+  await H.openThread();
+  const out = await H.copyViaButton();
+  assert.ok(out.includes("<messages>3</messages>"), await H.toastText());
+  const printRequest = H.state.requests.find((url) => url.includes("view=pt"));
+  assert.ok(printRequest.includes(`permthid=${encodeURIComponent(PERM_ID)}`), printRequest);
+  assert.ok(out.includes(`#all/${LEGACY_ID}</url>`), out.slice(0, 600));
+});
+
+// The two attributes are one number in two bases. When they disagree, one of
+// them is stale, and there is no way to tell which from the page.
+test("a heading whose two thread ids disagree is refused before any request", async () => {
+  H.state.page = headingWith(
+    `data-legacy-thread-id="deadbeefdeadbeef" data-thread-perm-id="${PERM_ID}"`
+  );
+  await H.openThread();
+  const out = await H.copyViaButton();
+  assert.strictEqual(out, "__NOT_COPIED__");
+  assert.match(await H.toastText(), /Couldn't identify the open conversation/);
+  assert.ok(
+    !H.state.requests.some((url) => url.includes("view=pt")),
+    "a print view was requested"
+  );
+});
+
+// "Open an email thread first" is wrong and unactionable when a thread is
+// plainly open and only its id is missing; a reload is what actually helps.
+test("a heading with no usable id asks for a reload, not for a thread to be opened", async () => {
+  H.state.page = headingWith(
+    'data-legacy-thread-id="undefined" data-thread-perm-id="undefined"'
+  );
+  await H.openThread();
+  const out = await H.copyViaButton();
+  assert.strictEqual(out, "__NOT_COPIED__");
+  assert.match(await H.toastText(), /Couldn't identify the open conversation/);
 });

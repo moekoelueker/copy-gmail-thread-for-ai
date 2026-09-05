@@ -22,6 +22,14 @@ before a public release.
 - [ ] Open a conversation from the middle of an inbox containing other rows.
 - [ ] Use **Copy thread**. The pasted `<subject>` exactly matches the open
       conversation.
+- [ ] In DevTools, inspect the `h2.hP` heading. Note whether it carries
+      `data-thread-perm-id`, `data-legacy-thread-id`, both, or the literal
+      string `undefined` in either; record the account type. In the Network
+      panel the `view=pt` request must carry `permthid=` when the heading has
+      a permanent id and `th=` only otherwise, never `undefined`.
+- [ ] On a second, differently configured account (another person's, a
+      Workspace domain, a non-English display language), repeat the copy. A
+      "different conversation" notice must name both subjects; report them.
 - [ ] `<messages>` equals Gmail’s full count, including messages collapsed on
       screen.
 - [ ] Output begins `<email_thread format_version="4">` and ends

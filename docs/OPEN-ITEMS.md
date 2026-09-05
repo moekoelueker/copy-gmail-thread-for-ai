@@ -61,6 +61,20 @@ installs remain manual.
 
 ## Known product limits
 
+- Thread identity is read from the subject heading's two id attributes. Gmail
+  writes the permanent id (`thread-f:<digits>`) and the legacy hex id on the
+  same element, and they are one number in two bases. Gmail is A/B testing how
+  it exposes thread ids: on some accounts an attribute is missing or holds the
+  literal string `undefined`, which passed the id shape check, went to Gmail as
+  `th=undefined`, and had every copy on that account refused as "a different
+  conversation" while the same build worked elsewhere. Each attribute is now
+  validated on its own, the print view is requested by `permthid=` whenever a
+  permanent id is present (the legacy `th=` form is the fallback), the legacy
+  id is derived from the permanent one when Gmail withholds it, and two ids
+  that disagree are refused with the reload advice. A `thread-a:` id — a
+  thread that so far exists only in this client — has no legacy form, so such
+  a capture carries no `<url>`. The refusal toast now names both subjects, so
+  a report of "a different conversation" is actionable.
 - Attachment links are scoped by account, not by thread. `th` on a Gmail
   attachment URL names the *message* carrying the file; a thread id is its
   first message's id, so the two coincide only for message 1. Requiring

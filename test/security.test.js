@@ -414,3 +414,55 @@ test("the account, which is tab-derived, is still the binding that holds", () =>
     false
   );
 });
+
+// Seen in the wild by two other Gmail extensions: Gmail renders the thread id
+// attributes with the literal string "undefined" before, or instead of, a real
+// value. It passed the shape check and was sent to Gmail as th=undefined, whose
+// search=all print view then described some other conversation — refused, on
+// every thread, as "Gmail returned a different conversation".
+test("the literal placeholders Gmail renders are not thread ids", () => {
+  for (const value of ["undefined", "null", "UNDEFINED"]) {
+    assert.strictEqual(S.validThreadId(value), false, value);
+    assert.strictEqual(S.validPermThreadId(`thread-f:${value}`), false, value);
+  }
+});
+
+test("permanent thread ids keep Gmail's thread-<kind>:<id> shape", () => {
+  assert.ok(S.validPermThreadId("thread-f:1670936980932986545"));
+  assert.ok(S.validPermThreadId("thread-a:r-1234567890"));
+  for (const value of [
+    "",
+    "undefined",
+    "thread-f:",
+    "msg-f:1670936980932986545",
+    "1670936980932986545",
+    "thread-f:12&x=1",
+    "thread-f:1/2",
+  ]) {
+    assert.strictEqual(S.validPermThreadId(value), false, JSON.stringify(value));
+  }
+});
+
+// Gmail's legacy hex id is the same 64-bit number as the thread-f id, written
+// in base 16; InboxSDK derives it the same way from Gmail's own responses. A
+// thread-a id is assigned client-side and has no legacy form to derive.
+test("a legacy thread id is derived from a thread-f permanent id", () => {
+  assert.strictEqual(
+    S.legacyThreadIdFromPermId("thread-f:1670509572574921039"),
+    "172ed79b0337c14f"
+  );
+  assert.strictEqual(
+    S.legacyThreadIdFromPermId("thread-f:1670936980932986545"),
+    "17305c54c69306b1"
+  );
+  for (const value of [
+    "thread-a:r-1234567890",
+    "thread-f:",
+    "thread-f:undefined",
+    "thread-f:123456789012345678901",
+    "",
+    null,
+  ]) {
+    assert.strictEqual(S.legacyThreadIdFromPermId(value), null, String(value));
+  }
+});

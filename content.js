@@ -131,6 +131,21 @@
     return c.messages === true && c.headers === true && c.attachments === true;
   }
 
+  // Both sides of a refused identity check, for the toast. A console line is
+  // not something most people will ever see, and without the two strings this
+  // is the one refusal a user cannot act on or report usefully.
+  function mismatchNote(detail) {
+    const clip = (value) => {
+      const text = String(value || "").replace(/\s+/g, " ").trim();
+      return text.length > 80 ? `${text.slice(0, 79)}…` : text;
+    };
+    if (!detail || (!detail.printSubject && !detail.openSubject)) return "";
+    return (
+      ` Gmail sent “${clip(detail.printSubject)}”; ` +
+      `the open thread is “${clip(detail.openSubject)}”.`
+    );
+  }
+
   let busy = false;
 
   function setControlsBusy(value) {
@@ -164,7 +179,11 @@
       });
       const response = await A.getThread();
       if (!response.ok) {
-        toast(MESSAGES[response.error] || MESSAGES.PARSE_EMPTY, { warn: true, sticky: true });
+        const note = response.error === "WRONG_THREAD" ? mismatchNote(response.detail) : "";
+        toast((MESSAGES[response.error] || MESSAGES.PARSE_EMPTY) + note, {
+          warn: true,
+          sticky: true,
+        });
         return;
       }
 

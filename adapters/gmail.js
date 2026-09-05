@@ -50,17 +50,14 @@
 
   // "thread" | "ambiguous" | "none" — what the UI should tell the user.
   function pageState() {
-    if (currentIdentity()) return "thread";
-    return subjectState().ambiguous ? "ambiguous" : "none";
+    const state = identityState();
+    if (state.identity) return "thread";
+    return state.reason === "none" ? "none" : "ambiguous";
   }
 
   // Never search the whole Gmail main region. Inbox rows live there too. Walk
   // only through the subject's ancestors and fail closed at role=main.
-  function threadIdFor(heading) {
-    if (!heading) return null;
-    const direct = heading.getAttribute("data-legacy-thread-id");
-    if (S.validThreadId(direct)) return direct;
-
+  function legacyIdNear(heading) {
     let node = heading.parentElement;
     let depth = 0;
     while (node && node.getAttribute("role") !== "main" && depth < 8) {
@@ -81,8 +78,38 @@
     return null;
   }
 
+  // The heading's own ids, reconciled. Gmail writes the permanent id
+  // (thread-f:<digits>) and the legacy hex id on the same element, and they
+  // are one number in two bases. Either can be missing or the literal string
+  // "undefined" — Gmail is A/B testing how it exposes thread ids, and on one
+  // account the placeholder passed the shape check, went to Gmail as
+  // th=undefined, and every copy was refused as a different conversation. So
+  // each is validated on its own, the legacy id is derived from the permanent
+  // one when Gmail withholds it, and a disagreement is a conflict to refuse,
+  // not a choice to make: one of them is stale and the page cannot say which.
+  function headingIds(heading) {
+    const perm = heading.getAttribute("data-thread-perm-id");
+    const permId = S.validPermThreadId(perm) ? perm : null;
+    const legacy = heading.getAttribute("data-legacy-thread-id");
+    const declared = S.validThreadId(legacy) ? legacy : null;
+    const derived = permId ? S.legacyThreadIdFromPermId(permId) : null;
+    if (declared && derived && declared.toLowerCase() !== derived) {
+      return { conflict: true };
+    }
+    return { permId, legacyId: declared || derived };
+  }
+
+  function threadIdentityFor(heading) {
+    if (!heading) return null;
+    const own = headingIds(heading);
+    if (own.conflict) return own;
+    const legacyId = own.legacyId || legacyIdNear(heading);
+    if (!own.permId && !legacyId) return null;
+    return { permId: own.permId, legacyId, threadId: legacyId || own.permId };
+  }
+
   function threadId() {
-    return threadIdFor(subjectEl());
+    return currentIdentity()?.threadId || null;
   }
 
   // Gmail renders emoji in a subject as images. Neither innerText nor
@@ -123,13 +150,34 @@
     return parts.join("").replace(/\s+/g, " ").trim();
   }
 
-  function currentIdentity() {
-    const heading = subjectEl();
-    const id = threadIdFor(heading);
+  // "unresolved" is a heading that is plainly open but cannot be identified:
+  // no usable id, or two ids that disagree. It is reported as ambiguous, whose
+  // advice — reload Gmail — is the one that helps; "open a thread first" would
+  // be wrong.
+  function identityState() {
+    const { element: heading, ambiguous } = subjectState();
+    if (!heading) return { identity: null, reason: ambiguous ? "ambiguous" : "none" };
+    const ids = threadIdentityFor(heading);
     const subject = subjectTextFor(heading);
     const accountIndex = S.accountIndexFromUrl(location.href);
-    if (!id || !subject || accountIndex == null) return null;
-    return { id, threadId: id, subject, accountIndex };
+    if (!ids || ids.conflict || !subject || accountIndex == null) {
+      return { identity: null, reason: "unresolved" };
+    }
+    return {
+      identity: {
+        id: ids.threadId,
+        threadId: ids.threadId,
+        permId: ids.permId,
+        legacyId: ids.legacyId,
+        subject,
+        accountIndex,
+      },
+      reason: null,
+    };
+  }
+
+  function currentIdentity() {
+    return identityState().identity;
   }
 
   function identityMatches(thread) {
@@ -142,9 +190,12 @@
     );
   }
 
+  // Gmail opens #all/<legacy hex id>; the permanent id is not a URL form, so a
+  // thread known only by a thread-a id has no link to report.
   function threadUrl(identity) {
+    if (!identity.legacyId) return null;
     return `https://mail.google.com/mail/u/${identity.accountIndex}/#all/${encodeURIComponent(
-      identity.id
+      identity.legacyId
     )}`;
   }
 
@@ -207,11 +258,15 @@
     return null;
   }
 
+  // Gmail's own "Print all" names the thread by its permanent id today; th=
+  // with the legacy hex id is the older form, used only when the page offers
+  // nothing else.
   function printViewUrl(identity, ik) {
-    const base =
-      `https://mail.google.com/mail/u/${identity.accountIndex}/?view=pt&search=all&th=` +
-      encodeURIComponent(identity.id);
-    return ik ? `${base}&ik=${encodeURIComponent(ik)}` : base;
+    const base = `https://mail.google.com/mail/u/${identity.accountIndex}/?view=pt&search=all`;
+    const thread = identity.permId
+      ? `&permthid=${encodeURIComponent(identity.permId)}`
+      : `&th=${encodeURIComponent(identity.threadId)}`;
+    return ik ? `${base}${thread}&ik=${encodeURIComponent(ik)}` : `${base}${thread}`;
   }
 
   function looksLikeLogin(resp, html) {
@@ -310,7 +365,7 @@
       threadId: identity.id,
       accountIndex: identity.accountIndex,
       subject: identity.subject,
-      url: threadUrl(identity),
+      url: threadUrl(identity) || undefined,
       timezone: captureTimezone(),
       source: "visible-page-partial",
       quotedTrimmed,
@@ -322,11 +377,12 @@
   }
 
   async function getThread() {
-    const identity = currentIdentity();
+    const state = identityState();
+    const identity = state.identity;
     if (!identity) {
       return {
         ok: false,
-        error: subjectState().ambiguous ? ERR.AMBIGUOUS_PAGE : ERR.NOT_ON_THREAD,
+        error: state.reason === "none" ? ERR.NOT_ON_THREAD : ERR.AMBIGUOUS_PAGE,
       };
     }
 
@@ -361,9 +417,14 @@
             "[copy-gmail-thread] refused a print-view subject mismatch.\n" +
               `  print view title: ${JSON.stringify(parsed.printSubject)}\n` +
               `  open thread subject: ${JSON.stringify(identity.subject)}\n` +
-              "  Please report both lines: https://github.com/moekoelueker/copy-gmail-thread-for-ai/issues"
+              `  requested thread: ${identity.permId || identity.threadId}\n` +
+              "  Please report these lines: https://github.com/moekoelueker/copy-gmail-thread-for-ai/issues"
           );
-          return { ok: false, error: ERR.WRONG_THREAD };
+          return {
+            ok: false,
+            error: ERR.WRONG_THREAD,
+            detail: { printSubject: parsed.printSubject, openSubject: identity.subject },
+          };
         }
         if (parsed.thread) {
           return {
@@ -373,7 +434,7 @@
               id: identity.id,
               threadId: identity.id,
               accountIndex: identity.accountIndex,
-              url: threadUrl(identity),
+              url: threadUrl(identity) || undefined,
               timezone: captureTimezone(),
             },
           };

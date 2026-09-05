@@ -101,8 +101,11 @@ completeness warnings before answering.
 
 ### What the capture engine preserves
 
-- requests Gmail’s full print view for the thread already open;
-- checks that the returned subject matches the open conversation;
+- requests Gmail’s full print view for the thread already open, naming it by
+  the permanent thread id Gmail’s own **Print all** uses, with the legacy hex
+  id as the fallback;
+- checks that the returned subject matches the open conversation, and names
+  both subjects in the notice when it refuses;
 - converts each message body to Markdown while keeping message boundaries in
   strict XML;
 - records From, To, Cc, Bcc, local time, parsed ISO time, and attachment
